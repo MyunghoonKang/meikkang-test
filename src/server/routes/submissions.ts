@@ -4,6 +4,8 @@ import type { SessionManager } from '../session/manager';
 import type { SubmissionQueue } from '../submissions/queue';
 import { broadcastRoomState } from '../io';
 import { nextBusinessDayNineAm } from '../submissions/scheduling';
+import { db } from '../db/client';
+import { sessions } from '../db/schema';
 
 export function submissionsRouter(mgr: SessionManager, queue: SubmissionQueue, io: IOServer): Router {
   const r = Router();
@@ -29,6 +31,21 @@ export function submissionsRouter(mgr: SessionManager, queue: SubmissionQueue, i
       const scheduledAt = nextBusinessDayNineAm();
       const mode = (process.env.WORKER_MODE ?? 'mock') as 'live' | 'mock' | 'dryrun';
       const attendeeNames = session.players.map(p => p.name);
+
+      // in-memory SessionManager → sessions 테이블에 사전 upsert (FK 보장)
+      db
+        .insert(sessions)
+        .values({
+          id: session.id,
+          roomCode: session.roomCode,
+          status: session.status,
+          hostId: session.hostId,
+          selectedGameId: session.selectedGameId,
+          loserId: session.loserId,
+          createdAt: session.createdAt ?? Date.now(),
+        })
+        .onConflictDoNothing()
+        .run();
 
       const submissionId = await queue.enqueue({
         sessionId: session.id,

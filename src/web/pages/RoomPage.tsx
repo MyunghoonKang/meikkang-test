@@ -22,6 +22,6 @@ export default function RoomPage() {
     case 'PREPARING': return <LobbyView snap={session} me={me} />;
     case 'PLAYING':   return <GameView  snap={session} me={me} />;
     // 4A가 CREDENTIAL_INPUT/QUEUED/RUNNING/COMPLETED/FAILED case 추가 예정 (별도 PR)
-    default:          return <ResultView snap={session} me={me} />;
+    default:          return <ResultView state={session} myPlayerId={me} />;
   }
 }

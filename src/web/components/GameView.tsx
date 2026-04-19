@@ -12,6 +12,18 @@ export function GameView({ snap, me }: { snap: Snap; me: string }) {
   const [progress, setProgress] = useState<{ submittedCount: number; total: number } | null>(null);
 
   useEffect(() => {
+    if (!game && snap.status === 'PLAYING' && snap.selectedGameId) {
+      fetch('/api/games')
+        .then(r => r.json())
+        .then((games: GameMeta[]) => {
+          const g = games.find(x => x.id === snap.selectedGameId);
+          if (g) { setGame(g); setSeed(s => s || `${snap.sessionId}-fallback`); }
+        })
+        .catch(() => {});
+    }
+  }, [game, snap.status, snap.selectedGameId, snap.sessionId]);
+
+  useEffect(() => {
     const onBegin = (p: { game: GameMeta; seed: string }) => {
       setGame(p.game);
       setSeed(p.seed);
