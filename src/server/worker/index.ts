@@ -7,6 +7,7 @@ import { makeScreenshotDir, snap } from './screenshots';
 import { login, LoginError } from './login';
 import { openWriteForm } from './navigate';
 import { openCardModal, selectCardRow, NoMatchError } from './cardModal';
+import { fillForm, defaultTitle } from './formFill';
 import type { WorkerResult, WorkerDeps, WorkerMode } from './types';
 
 export type { WorkerResult, WorkerDeps, WorkerMode };
@@ -177,14 +178,32 @@ export async function runSubmission(submissionId: string): Promise<WorkerResult>
       return { status: 'FAILED_UNEXPECTED_UI', erpRefNo: null, sunginNb: null, screenshotDir, errorLog };
     }
 
-    // Subsequent steps (B9+) — not implemented yet
-    console.log(`[worker] runSubmission(${submissionId}) mode=${mode} — cardModal OK (sunginNb=${sunginNb}), remaining steps not implemented yet`);
+    // Step: formFill
+    await deps.reportStep(sub.sessionId, 'formFill');
+
+    try {
+      const title = sub.titleOverride ?? defaultTitle(sub.purposeKind, sub.scheduledAt);
+      await fillForm(page, {
+        title,
+        purposeKind: sub.purposeKind,
+        projectCode: '3009',
+        budgetCode: '4001',
+      });
+    } catch (e) {
+      await snap(page, screenshotDir, 'formfill-fail');
+      const errorLog = String(e);
+      await deps.fail(submissionId, { status: 'FAILED_UNEXPECTED_UI', errorLog, screenshotDir });
+      return { status: 'FAILED_UNEXPECTED_UI', erpRefNo: null, sunginNb, screenshotDir, errorLog };
+    }
+
+    // Subsequent steps (B10+) — not implemented yet
+    console.log(`[worker] runSubmission(${submissionId}) mode=${mode} — formFill OK (sunginNb=${sunginNb}), remaining steps not implemented yet`);
     const result = {
       status: 'FAILED_OTHER' as const,
       erpRefNo: null,
       sunginNb,
       screenshotDir,
-      errorLog: 'runSubmission: steps after cardModal not implemented yet',
+      errorLog: 'runSubmission: steps after formFill not implemented yet',
     };
     await deps.fail(submissionId, {
       status: result.status,

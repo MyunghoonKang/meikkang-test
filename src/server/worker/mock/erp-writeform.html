@@ -307,6 +307,11 @@
       if (projectCode) {
         document.getElementById('budgetDisplay').value = projectCode + (budgetAcctCd ? ' / ' + budgetAcctCd : '');
       }
+      // Persist values into the main gridView so worker can read them back
+      if (budgetAcctCd) {
+        gridView.getDataSource().setValue(0, 'budgetAcctCd', budgetAcctCd);
+      }
+      gridView.getDataSource().setValue(0, 'validateResult', '적합');
       document.getElementById('budgetModal').classList.remove('active');
     });
 
