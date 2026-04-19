@@ -111,7 +111,13 @@ src/server/routes/{sessions,games}.ts · src/shared/** · tests/{roomCode,manage
 - Task A7 머지 직후 슬랙에 "admin upload OK" 알림 (Dev 1·2 언블록).
 - Task A9 머지 직후 슬랙에 "실 소켓 연결 가능" 알림 (3B·4A 언블록).
 
-공동 계약 세션(H+0~2, Dev 4 와 동석)을 3A 가 리드해 `src/shared/protocol.ts` · `src/server/db/schema.ts` · `.env.example` · `src/server/hooks/submissionHook.ts` 시그니처 등 7 개 산출물을 main 에 머지한다. 세부 목록은 dev3.md §공동 계약 세션 참조. 머지 완료 후 Task A1 스캐폴딩으로 진입. 각 커밋 후 멈춰서 결과를 보고해라.
+공동 계약 세션(H+0~2, Dev 4 와 동석)을 3A 가 리드해 `src/shared/protocol.ts` · `src/server/db/schema.ts` · `.env.example` · `src/server/hooks/submissionHook.ts` 시그니처 등 7 개 산출물을 main 에 머지한다. 세부 목록은 dev3.md §공동 계약 세션 참조. 머지 완료 후 Task A1 스캐폴딩으로 진입.
+
+실행 원칙 (context 절약):
+- 이 세션에서 **Task 한 개만** 완료하고 push 후 STOP.
+- 해당 Task 의 `- [ ]` 체크박스를 `- [x]` 로 갱신해 같은 커밋에 포함.
+- `docs/handoff/session-notes.md` 끝에 `[3A] Task AN 완료 — <1줄 요약>` 한 줄 덧붙임 (미해결 이슈 있으면 같이).
+- 다음 Task 는 **새 Claude Code 세션 또는 `/clear`** 로 초기화 후 진행. 이어받는 세션은 plan 의 첫 번째 `- [ ]` 를 찾아 그 Task 만 수행.
 ```
 
 ---
@@ -245,7 +251,13 @@ src/web/styles.css · src/web/socket.ts · tests/web/**
 
 선행: 공동 계약 세션(H+0~2)에서 3A·4A 가 `src/web/styles.css` · `StatusBadge.tsx` · `InlineSpinner.tsx` 공용 시그니처를 확정해 main 에 머지한 뒤 이 세션을 기동한다. 세부 목록은 dev3.md §공동 계약 세션 참조.
 
-Task A10 HomePage 부터 시작 (mock socket 기반). 각 커밋 후 멈춰서 결과를 보고해라.
+Task A10 HomePage 부터 시작 (mock socket 기반).
+
+실행 원칙 (context 절약):
+- 이 세션에서 **Task 한 개만** 완료하고 push 후 STOP.
+- 해당 Task 의 `- [ ]` 체크박스를 `- [x]` 로 갱신해 같은 커밋에 포함.
+- `docs/handoff/session-notes.md` 끝에 `[3B] Task AN 완료 — <1줄 요약>` 한 줄 덧붙임 (미해결 이슈 있으면 같이).
+- 다음 Task 는 **새 Claude Code 세션 또는 `/clear`** 로 초기화 후 진행. 이어받는 세션은 plan 의 첫 번째 `- [ ]` 를 찾아 그 Task 만 수행.
 ```
 
 ---

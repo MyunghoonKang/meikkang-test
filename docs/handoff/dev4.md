@@ -122,7 +122,13 @@ src/web/components/{CredentialForm,ResultView}.tsx · tests/{db,vault,queue,sche
 
 공동 계약 세션(H+0~2)에서 4A 가 리뷰어로 protocol.ts 의 Plan B 필드(submissionId · scheduledAt · workerStep · erpRefNo · errorLog) + submissionHook.ts 시그니처를 확정하고, 3A 의 PR 에 OK 후 이 세션이 B1 부터 진입. 세부 목록은 dev4.md §공동 계약 세션 참조.
 
-Task B1 부터 시작. 각 커밋 후 멈춰서 결과를 보고해라.
+Task B1 부터 시작.
+
+실행 원칙 (context 절약):
+- 이 세션에서 **Task 한 개만** 완료하고 push 후 STOP.
+- 해당 Task 의 `- [ ]` 체크박스를 `- [x]` 로 갱신해 같은 커밋에 포함.
+- `docs/handoff/session-notes.md` 끝에 `[4A] Task BN 완료 — <1줄 요약>` 한 줄 덧붙임 (미해결 이슈 있으면 같이).
+- 다음 Task 는 **새 Claude Code 세션 또는 `/clear`** 로 초기화 후 진행. 이어받는 세션은 plan 의 첫 번째 `- [ ]` 를 찾아 그 Task 만 수행.
 ```
 
 ---
@@ -200,7 +206,13 @@ Plan B: docs/superpowers/plans/2026-04-19-erp-automation.md 의 Task B6~B10 + B1
 
 선행: 공동 계약 세션(H+0~2)에서 protocol.ts 와 submissionHook.ts 시그니처가 main 에 머지된 뒤 이 세션을 기동. 세부 목록은 dev4.md §공동 계약 세션 참조.
 
-Task B6 부터 시작 (스캐폴딩 + 목업 HTML 3 종 + `runSubmission` export 스텁을 먼저 커밋해 4A 언블록). 각 커밋 후 멈춰서 결과를 보고해라.
+Task B6 부터 시작 (스캐폴딩 + 목업 HTML 3 종 + `runSubmission` export 스텁을 먼저 커밋해 4A 언블록).
+
+실행 원칙 (context 절약):
+- 이 세션에서 **Task 한 개만** 완료하고 push 후 STOP.
+- 해당 Task 의 `- [ ]` 체크박스를 `- [x]` 로 갱신해 같은 커밋에 포함.
+- `docs/handoff/session-notes.md` 끝에 `[4B] Task BN 완료 — <1줄 요약>` 한 줄 덧붙임 (미해결 이슈 있으면 같이).
+- 다음 Task 는 **새 Claude Code 세션 또는 `/clear`** 로 초기화 후 진행. 이어받는 세션은 plan 의 첫 번째 `- [ ]` 를 찾아 그 Task 만 수행.
 ```
 
 ---
