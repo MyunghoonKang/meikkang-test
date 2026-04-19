@@ -2,11 +2,14 @@
 
 > **이 문서 자체가 Cowork 세션의 입력 프롬프트로 그대로 쓰이게 작성됐다.** 필요한 계약·템플릿·테스트 방법을 한 문서 안에 담았으니, 저장소를 열지 않고도 Cowork 안에서 게임을 완성할 수 있다.
 
+(여기서부터 복사)
+--- 
+
 ## 0. 무엇을 만드나
 
 식후 4명이 본인 노트북에서 각자 iframe 게임을 플레이한다. 게임은 **단일 HTML 파일** 한 장이며, 본인 결과값(숫자 하나)만 서버로 보낸다. 서버가 전체 값을 비교해 패자 1명을 뽑는다. 패자가 ERP 품의서를 올리게 된다.
 
-**너의 목표:** 재미있는 단일 HTML 게임 3~N개를 만들고, 운영자(Dev 4)에게 전달해 admin 도구로 사전 등록되게 한다. 사용자 UI에는 업로드 화면이 없으므로 등록은 운영자만 한다 (`POST /api/games` 또는 `cp games/`).
+**너의 목표:** 재미있는 단일 HTML 게임 3~N개를 만들고, 운영자(Dev 4 의 4A 또는 4B 어느 세션이든)에게 전달해 admin 도구로 사전 등록되게 한다. 사용자 UI에는 업로드 화면이 없으므로 등록은 운영자만 한다 (`POST /api/games` 또는 `cp games/`).
 
 ## 1. 게임 계약 (반드시 준수)
 
@@ -115,31 +118,44 @@ window.parent.postMessage({ type: "submit", value: <number> }, "*");  // 플레�
 먼저 전체 HTML 을 아티팩트로 내보내고, 그 후 개선 제안을 해라.
 ```
 
-## 6. 제출 (업로드)
+---
+(여기까지)
 
-### 6-1. 플랫폼 부팅 후 (정석 경로)
+## 6. 제출 (Slack 팀 DM 방)
 
-> ⚠️ 사용자 UI(LobbyView)에는 "게임 업로드" 버튼이 없다. 게임은 운영자가 admin 도구로 사전 등록한다.
+> ⚠️ 이 프로젝트는 **git 을 쓰지 않는다.** 모든 산출물·핸드오프는 **팀 DM 방**으로 주고받는다. 사용자 UI(LobbyView)에도 "게임 업로드" 버튼이 없다 — 게임은 운영자(Dev 4 의 4A 또는 4B 어느 세션이든)가 admin 도구로 사전 등록한다.
 
-운영자(보통 Dev 4)가 다음 두 방법 중 하나로 등록:
+### 6-1. 최초 전달
 
-```bash
-# A. HTTP 직접 업로드
-curl -F "game=@number-guess.html" http://localhost:3000/api/games
+1. `§3` 하네스로 계약 위반 없음을 먼저 확인한다 (`§3` 체크리스트 5개 전부 ✅).
+2. **팀 DM 방**에 완성된 HTML 파일을 **새 메시지로 첨부**한다. 메시지 본문에 다음을 함께 적는다:
 
-# B. games/ 폴더에 직접 두기 (GameRegistry가 watch 모드면 자동 인식)
-cp number-guess.html games/
-```
+   ```
+   🎮 게임 제출: <파일명>.html
+   - 제목: <game:title>
+   - compare: <max|min> / value 의미: <설명>
+   - 최소~최대 인원: <min>~<max>
+   - 하네스 검증: ✅ (meta 5개 / ready / submit 1회 / outcome 수신)
+   ```
 
-등록 후:
-1. 호스트가 새 방을 생성하면 LobbyView의 `GameSelector` 드롭다운에 본인의 게임이 노출됨.
-2. 호스트가 게임 선택 → "시작!" → 4명 모두 GameView로 전환 → 플레이 → 패자 발표.
+3. 이 메시지가 **해당 게임 전용 thread** 의 시작점이 된다. 이후 모든 수정·논의는 이 thread 안에서만 오간다.
+4. 운영자(Dev 4)가 admin 등록을 끝내면 thread 에 **`✅` 이모지 하나**를 찍는다. 그게 "등록 완료" 시그널.
 
-업로드가 거절되면 거의 항상 **meta 태그 누락**. `game:title`, `game:min-players`, `game:max-players`, `game:description`, `game:compare` 5개 전부 확인.
+### 6-2. 수정·재전달
 
-### 6-2. 플랫폼 전에 (로컬 단독)
+- 같은 thread 안에 **수정본 HTML 을 재첨부**한다. **파일명은 그대로 유지** (버전 suffix 금지 — `v2` 같은 거 붙이지 말 것).
+- 메시지에는 "수정: <무엇을 바꿨는지 1줄>" 만 짧게. Dev 4 가 다시 등록하고 다시 `✅`.
+- thread 외부(메인 채널)에 재첨부하지 말 것 — Dev 4 가 어떤 파일이 최신인지 헷갈린다.
 
-하네스로 먼저 계약 위반 없는지 검증 → 통과한 HTML 을 깃 브랜치 `feat/dev1-game-<name>` 에 올려두면 된다. 경로: `games/<name>.html`.
+### 6-3. 반려
+
+- meta 태그 누락·postMessage 계약 위반 등으로 Dev 4 가 거절하면 thread 안에 반려 사유를 남긴다. 수정 후 `§6-2` 경로로 재전달.
+- 반려 대부분은 **meta 태그 5개 누락**. `game:title`, `game:min-players`, `game:max-players`, `game:description`, `game:compare` 전부 확인.
+
+### 6-4. 등록 후 데모 흐름 (참고)
+
+1. 호스트가 새 방을 생성하면 LobbyView 의 `GameSelector` 드롭다운에 네 게임이 노출된다.
+2. 호스트가 게임 선택 → "시작!" → 4명 모두 GameView 로 전환 → 플레이 → 패자 발표.
 
 ## 7. 심사 연출 아이디어
 
@@ -150,6 +166,6 @@ cp number-guess.html games/
 
 - 계약 확인은 이 문서 §1 또는 `docs/superpowers/specs/2026-04-19-erp-proposal-game-automation-design.md` §4.3 를 본다.
 - 게임이 호스트 화면에 어떻게 끼워지는지 시각 확인 → `docs/design/project/Wireframes.html` §3 GameView (탭 3) 참고. iframe 영역 크기와 HUD 배치 결정에 도움.
-- 업로드 API 422 에러 → Dev 4 에게 `errors` 필드를 들고 공유.
-- iframe sandbox 때문에 막히면 → Dev 4 에게 즉시 알림. SDK 한계일 수 있음.
+- 업로드 반려 (meta 누락 등) → thread 안에서 Dev 4 가 사유를 남긴다. 수정 후 `§6-2` 경로로 재전달.
+- iframe sandbox 때문에 막히면 → 팀 DM 방에 즉시 알림. SDK 한계일 수 있음.
 - 심사까지 여유 있으면 Plan B Task 6 의 `src/server/worker/mock/*.html` 정리도 게임 제작팀이 지원 가능 (선택 과제).
