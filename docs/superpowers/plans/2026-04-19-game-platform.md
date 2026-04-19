@@ -60,15 +60,16 @@
 │   │   │   └── useGameFrame.ts  # iframe 브리지 hook
 │   │   ├── pages/
 │   │   │   ├── HomePage.tsx
-│   │   │   ├── LobbyPage.tsx
-│   │   │   ├── GamePage.tsx
-│   │   │   ├── ResultPage.tsx
-│   │   │   └── CredentialPage.tsx  # Plan B 스텁
+│   │   │   └── RoomPage.tsx        # 단일 방 라우트. status에 따라 LobbyView/GameView/ResultView 스왑
 │   │   ├── components/
 │   │   │   ├── PlayerList.tsx
-│   │   │   ├── GameSelector.tsx
-│   │   │   ├── GameUpload.tsx
-│   │   │   └── GameFrame.tsx
+│   │   │   ├── GameSelector.tsx     # GameUpload는 의도적으로 제거 (사전 등록된 게임만 선택)
+│   │   │   ├── GameFrame.tsx
+│   │   │   ├── LobbyView.tsx        # PREPARING 단계
+│   │   │   ├── GameView.tsx         # PLAYING 단계
+│   │   │   ├── ResultView.tsx       # FINISHED~COMPLETED/FAILED 단계 (status별 분기)
+│   │   │   ├── CredentialForm.tsx   # ResultView 안에서 패자에게만 노출. Plan B Task 3 가 본문 채움
+│   │   │   └── StatusBadge.tsx
 │   │   └── styles.css
 │   └── shared/
 │       └── protocol.ts          # socket/postMessage zod 스키마 공용
@@ -286,7 +287,7 @@ git commit -m "feat: project scaffold with express+socket.io+vite+react"
 
 ```typescript
 import { describe, it, expect } from 'vitest';
-import { IframeSubmit, SocketJoin, Outcome } from '../src/shared/protocol';
+import { IframeSubmit, SocketJoin, Outcome, RoomStatus, RoomStatePayload } from '../src/shared/protocol';
 
 describe('protocol schemas', () => {
   it('accepts valid iframe submit', () => {
@@ -308,6 +309,27 @@ describe('protocol schemas', () => {
     const r = Outcome.safeParse({
       type: 'outcome', loserId: 'p1',
       results: [{ playerId: 'p1', value: 10 }, { playerId: 'p2', value: 3 }],
+    });
+    expect(r.success).toBe(true);
+  });
+  it('RoomStatus accepts all 9 values', () => {
+    for (const s of ['PREPARING','PLAYING','FINISHED','CREDENTIAL_INPUT','QUEUED','RUNNING','COMPLETED','FAILED','ABORTED']) {
+      expect(RoomStatus.safeParse(s).success).toBe(true);
+    }
+    expect(RoomStatus.safeParse('LOBBY').success).toBe(false);
+  });
+  it('RoomStatePayload accepts minimal PREPARING snapshot', () => {
+    const r = RoomStatePayload.safeParse({
+      sessionId: 's1', roomCode: 'ABCD', status: 'PREPARING',
+      hostId: 'h1', players: [{ id: 'h1', name: 'A' }], selectedGameId: null,
+    });
+    expect(r.success).toBe(true);
+  });
+  it('RoomStatePayload accepts COMPLETED with erpRefNo', () => {
+    const r = RoomStatePayload.safeParse({
+      sessionId: 's1', roomCode: 'ABCD', status: 'COMPLETED',
+      hostId: 'h1', players: [{ id: 'h1', name: 'A' }], selectedGameId: 'g1',
+      loserId: 'h1', erpRefNo: 'EX-2026-0001',
     });
     expect(r.success).toBe(true);
   });
@@ -333,8 +355,22 @@ export const Player = z.object({
 });
 export type Player = z.infer<typeof Player>;
 
-export const SessionState = z.enum(['LOBBY', 'PLAYING', 'FINISHED', 'ABORTED']);
-export type SessionState = z.infer<typeof SessionState>;
+// 7단계 Room 상태머신 + ABORTED.
+// - PREPARING:        호스트가 방 만든 직후 (LobbyView)
+// - PLAYING:          게임 시작 ~ 패자 결정 전
+// - FINISHED:         패자 결정. 패자에게 "자격증명 입력" CTA 노출
+// - CREDENTIAL_INPUT: 패자가 자격증명 입력 중 (다른 사람은 대기 안내)
+// - QUEUED:           submission enqueue 완료, 스케줄 대기 중
+// - RUNNING:          워커가 ERP 자동화 실행 중
+// - COMPLETED:        ERP 상신 성공
+// - FAILED:           ERP 상신 실패 (errorLog 노출)
+// - ABORTED:          데모 중단 등
+export const RoomStatus = z.enum([
+  'PREPARING', 'PLAYING', 'FINISHED',
+  'CREDENTIAL_INPUT', 'QUEUED', 'RUNNING',
+  'COMPLETED', 'FAILED', 'ABORTED',
+]);
+export type RoomStatus = z.infer<typeof RoomStatus>;
 
 export const CompareRule = z.enum(['max', 'min']);
 export type CompareRule = z.infer<typeof CompareRule>;
@@ -361,13 +397,26 @@ export const SocketStartGame = z.object({});
 export const SocketSubmitResult = z.object({ value: z.number().finite() });
 
 // ===== Socket 이벤트 (서버 → 클라) =====
-export const SessionState_Payload = z.object({
+// `room:state` 이벤트 페이로드. 모든 상태 변화는 이 한 이벤트로 broadcast.
+export const RoomStatePayload = z.object({
   sessionId: z.string(),
   roomCode: z.string(),
-  state: SessionState,
+  status: RoomStatus,
   hostId: z.string(),
   players: z.array(Player),
   selectedGameId: z.string().nullable(),
+  // FINISHED 이후에만 채워짐
+  loserId: z.string().nullable().optional(),
+  results: z.array(z.object({ playerId: z.string(), value: z.number() })).optional(),
+  // QUEUED 이후에만 채워짐 (Plan B)
+  submissionId: z.string().nullable().optional(),
+  scheduledAt: z.number().nullable().optional(),
+  // RUNNING 단계 indicator (Plan B 워커가 step 진행마다 갱신)
+  workerStep: z.enum(['login', 'cardModal', 'formFill', 'approval']).nullable().optional(),
+  // COMPLETED 시 채워짐
+  erpRefNo: z.string().nullable().optional(),
+  // FAILED 시 채워짐
+  errorLog: z.string().nullable().optional(),
 });
 
 export const OutcomePayload = z.object({
@@ -406,7 +455,7 @@ export const IframeToHost = z.discriminatedUnion('type', [IframeReady, IframeSub
 ```bash
 npm test
 ```
-기대: 6 passing.
+기대: 9 passing.
 
 - [ ] **Step 2.5: 커밋**
 
@@ -444,11 +493,18 @@ import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
 export const sessions = sqliteTable('sessions', {
   id: text('id').primaryKey(),
   roomCode: text('room_code').notNull().unique(),
-  state: text('state').notNull().default('LOBBY'),
+  // RoomStatus 9 values. 기본값 PREPARING (과거 'LOBBY').
+  status: text('status', {
+    enum: ['PREPARING','PLAYING','FINISHED','CREDENTIAL_INPUT','QUEUED','RUNNING','COMPLETED','FAILED','ABORTED'],
+  }).notNull().default('PREPARING'),
   hostId: text('host_id').notNull(),
   selectedGameId: text('selected_game_id'),
   startedAt: integer('started_at'),
   createdAt: integer('created_at').notNull(),
+  // FINISHED 이후 채움
+  loserId: text('loser_id'),
+  // QUEUED 이후 채움 — submissions.id FK (Plan B 마이그레이션에서 추가 가능)
+  submissionId: text('submission_id'),
 });
 
 export const participants = sqliteTable('participants', {
@@ -599,17 +655,26 @@ git commit -m "feat(session): room code generator (32^4 alphabet, crypto rand)"
 - [ ] **Step 5.1: 타입 정의 — `src/server/session/types.ts`**
 
 ```typescript
-import type { Player, SessionState } from '../../shared/protocol';
+import type { Player, RoomStatus } from '../../shared/protocol';
 
 export interface SessionSnapshot {
   id: string;
   roomCode: string;
-  state: SessionState;
+  status: RoomStatus;
   hostId: string;
   players: Player[];
   selectedGameId: string | null;
   startedAt: number | null;
   createdAt: number;
+  // 게임 종료 이후
+  loserId: string | null;
+  results: { playerId: string; value: number }[] | null;
+  // Plan B 통합 시 채움
+  submissionId: string | null;
+  scheduledAt: number | null;
+  workerStep: 'login' | 'cardModal' | 'formFill' | 'approval' | null;
+  erpRefNo: string | null;
+  errorLog: string | null;
 }
 
 export interface CreateSessionInput { name: string; }
@@ -631,7 +696,7 @@ describe('SessionManager', () => {
     const b = mgr.createSession({ name: 'Bob' });
     expect(a.roomCode).not.toBe(b.roomCode);
     expect(a.hostId).toBe(a.players[0].id);
-    expect(a.state).toBe('LOBBY');
+    expect(a.status).toBe('PREPARING');
   });
 
   it('join session appends participant', () => {
@@ -654,22 +719,45 @@ describe('SessionManager', () => {
       .toThrow(/host only/i);
   });
 
-  it('startGame transitions LOBBY → PLAYING, host-only', () => {
+  it('startGame transitions PREPARING → PLAYING, host-only', () => {
     const a = mgr.createSession({ name: 'Alice' });
     mgr.join({ roomCode: a.roomCode, name: 'Bob' });
     mgr.selectGame({ sessionId: a.id, actorId: a.hostId, gameId: 'g1' });
     const started = mgr.startGame({ sessionId: a.id, actorId: a.hostId });
-    expect(started.state).toBe('PLAYING');
+    expect(started.status).toBe('PLAYING');
     expect(started.startedAt).toBeGreaterThan(0);
   });
 
-  it('finishGame transitions PLAYING → FINISHED', () => {
+  it('finishGame transitions PLAYING → FINISHED, captures loser/results', () => {
+    const a = mgr.createSession({ name: 'Alice' });
+    const j = mgr.join({ roomCode: a.roomCode, name: 'Bob' });
+    mgr.selectGame({ sessionId: a.id, actorId: a.hostId, gameId: 'g1' });
+    mgr.startGame({ sessionId: a.id, actorId: a.hostId });
+    const bobId = j.players[1].id;
+    const done = mgr.finishGame({
+      sessionId: a.id,
+      loserId: bobId,
+      results: [{ playerId: a.hostId, value: 1 }, { playerId: bobId, value: 9 }],
+    });
+    expect(done.status).toBe('FINISHED');
+    expect(done.loserId).toBe(bobId);
+  });
+
+  it('transitionStatus enforces FINISHED → CREDENTIAL_INPUT → QUEUED → RUNNING → COMPLETED chain', () => {
     const a = mgr.createSession({ name: 'Alice' });
     mgr.join({ roomCode: a.roomCode, name: 'Bob' });
     mgr.selectGame({ sessionId: a.id, actorId: a.hostId, gameId: 'g1' });
     mgr.startGame({ sessionId: a.id, actorId: a.hostId });
-    const done = mgr.finishGame({ sessionId: a.id });
-    expect(done.state).toBe('FINISHED');
+    mgr.finishGame({ sessionId: a.id, loserId: a.hostId, results: [] });
+    expect(mgr.transitionStatus({ sessionId: a.id, to: 'CREDENTIAL_INPUT' }).status).toBe('CREDENTIAL_INPUT');
+    expect(mgr.transitionStatus({ sessionId: a.id, to: 'QUEUED', patch: { submissionId: 'sub1', scheduledAt: 123 } }).status).toBe('QUEUED');
+    expect(mgr.transitionStatus({ sessionId: a.id, to: 'RUNNING', patch: { workerStep: 'login' } }).status).toBe('RUNNING');
+    expect(mgr.transitionStatus({ sessionId: a.id, to: 'COMPLETED', patch: { erpRefNo: 'EX-1' } }).erpRefNo).toBe('EX-1');
+  });
+
+  it('transitionStatus rejects illegal jumps (e.g., PREPARING → COMPLETED)', () => {
+    const a = mgr.createSession({ name: 'Alice' });
+    expect(() => mgr.transitionStatus({ sessionId: a.id, to: 'COMPLETED' })).toThrow(/illegal transition/i);
   });
 });
 ```
@@ -681,9 +769,23 @@ describe('SessionManager', () => {
 ```typescript
 import { randomUUID } from 'node:crypto';
 import { generateRoomCode } from './roomCode';
+import type { RoomStatus } from '../../shared/protocol';
 import type { CreateSessionInput, JoinSessionInput, SessionSnapshot } from './types';
 
 interface Options { persist?: boolean; }
+
+// 허용된 단방향 전이만 정의. 9 상태 모두 명시적.
+const ALLOWED_TRANSITIONS: Record<RoomStatus, RoomStatus[]> = {
+  PREPARING:        ['PLAYING', 'ABORTED'],
+  PLAYING:          ['FINISHED', 'ABORTED'],
+  FINISHED:         ['CREDENTIAL_INPUT', 'ABORTED'],
+  CREDENTIAL_INPUT: ['QUEUED', 'ABORTED'],
+  QUEUED:           ['RUNNING', 'ABORTED'],
+  RUNNING:          ['COMPLETED', 'FAILED', 'ABORTED'],
+  COMPLETED:        [],
+  FAILED:           ['QUEUED'],   // 재시도
+  ABORTED:          [],
+};
 
 export class SessionManager {
   private byId = new Map<string, SessionSnapshot>();
@@ -697,9 +799,12 @@ export class SessionManager {
     const id = randomUUID();
     const hostId = randomUUID();
     const snapshot: SessionSnapshot = {
-      id, roomCode, state: 'LOBBY', hostId,
+      id, roomCode, status: 'PREPARING', hostId,
       players: [{ id: hostId, name: input.name }],
       selectedGameId: null, startedAt: null, createdAt: Date.now(),
+      loserId: null, results: null,
+      submissionId: null, scheduledAt: null,
+      workerStep: null, erpRefNo: null, errorLog: null,
     };
     this.byId.set(id, snapshot);
     this.byRoom.set(roomCode, id);
@@ -711,7 +816,7 @@ export class SessionManager {
     const id = this.byRoom.get(input.roomCode.toUpperCase());
     if (!id) throw new Error(`session not found for code ${input.roomCode}`);
     const snap = this.byId.get(id)!;
-    if (snap.state !== 'LOBBY') throw new Error('session already started');
+    if (snap.status !== 'PREPARING') throw new Error('session already started');
     const playerId = randomUUID();
     snap.players.push({ id: playerId, name: input.name });
     return { ...snap };
@@ -738,21 +843,52 @@ export class SessionManager {
     const snap = this.requireSession(sessionId);
     if (snap.hostId !== actorId) throw new Error('host only');
     if (!snap.selectedGameId) throw new Error('no game selected');
-    snap.state = 'PLAYING';
+    this.assertTransition(snap.status, 'PLAYING');
+    snap.status = 'PLAYING';
     snap.startedAt = Date.now();
     return { ...snap };
   }
 
-  finishGame({ sessionId }: { sessionId: string; }): SessionSnapshot {
-    const snap = this.requireSession(sessionId);
-    snap.state = 'FINISHED';
+  finishGame(input: {
+    sessionId: string;
+    loserId: string;
+    results: { playerId: string; value: number }[];
+  }): SessionSnapshot {
+    const snap = this.requireSession(input.sessionId);
+    this.assertTransition(snap.status, 'FINISHED');
+    snap.status = 'FINISHED';
+    snap.loserId = input.loserId;
+    snap.results = input.results;
+    return { ...snap };
+  }
+
+  /**
+   * Plan B에서 사용. FINISHED 이후의 모든 상태 전이는 이 메서드를 통해 일원화.
+   * patch로 submissionId/scheduledAt/workerStep/erpRefNo/errorLog 갱신 가능.
+   */
+  transitionStatus(input: {
+    sessionId: string;
+    to: RoomStatus;
+    patch?: Partial<Pick<SessionSnapshot, 'submissionId' | 'scheduledAt' | 'workerStep' | 'erpRefNo' | 'errorLog'>>;
+  }): SessionSnapshot {
+    const snap = this.requireSession(input.sessionId);
+    this.assertTransition(snap.status, input.to);
+    snap.status = input.to;
+    if (input.patch) Object.assign(snap, input.patch);
     return { ...snap };
   }
 
   abort({ sessionId }: { sessionId: string; }): SessionSnapshot {
     const snap = this.requireSession(sessionId);
-    snap.state = 'ABORTED';
+    snap.status = 'ABORTED';
     return { ...snap };
+  }
+
+  private assertTransition(from: RoomStatus, to: RoomStatus): void {
+    const allowed = ALLOWED_TRANSITIONS[from];
+    if (!allowed.includes(to)) {
+      throw new Error(`illegal transition ${from} → ${to}`);
+    }
   }
 
   private requireSession(id: string): SessionSnapshot {
@@ -763,7 +899,7 @@ export class SessionManager {
 }
 ```
 
-- [ ] **Step 5.5: 테스트 통과 확인** — 6 passing.
+- [ ] **Step 5.5: 테스트 통과 확인** — 8 passing.
 
 - [ ] **Step 5.6: 커밋**
 
@@ -1206,6 +1342,7 @@ export function sessionsRouter(mgr: SessionManager): Router {
 ```typescript
 import type { Server as IOServer, Socket } from 'socket.io';
 import type { SessionManager } from './session/manager';
+import type { SessionSnapshot } from './session/types';
 import type { GameRegistry } from './games/registry';
 import { GameRunner } from './games/runner';
 import {
@@ -1223,6 +1360,28 @@ const runners = new Map<string, GameRunner>();
 interface SocketMeta { sessionId: string; playerId: string; }
 const socketMeta = new WeakMap<Socket, SocketMeta>();
 
+/**
+ * 단일 broadcast 진입점. SessionSnapshot을 RoomStatePayload 모양으로 emit.
+ * Plan B 워커 진행 단계도 같은 채널로 전달되어 클라이언트 RoomView가 통일된 stream을 본다.
+ */
+export function broadcastRoomState(io: IOServer, snap: SessionSnapshot): void {
+  io.to(snap.id).emit('room:state', {
+    sessionId: snap.id,
+    roomCode: snap.roomCode,
+    status: snap.status,
+    hostId: snap.hostId,
+    players: snap.players,
+    selectedGameId: snap.selectedGameId,
+    loserId: snap.loserId,
+    results: snap.results ?? undefined,
+    submissionId: snap.submissionId,
+    scheduledAt: snap.scheduledAt,
+    workerStep: snap.workerStep,
+    erpRefNo: snap.erpRefNo,
+    errorLog: snap.errorLog,
+  });
+}
+
 export function attachIo(io: IOServer, ctx: Ctx): void {
   io.on('connection', socket => {
     socket.on('session:create', (raw, ack) => {
@@ -1231,6 +1390,7 @@ export function attachIo(io: IOServer, ctx: Ctx): void {
       const snap = ctx.mgr.createSession(parsed.data);
       socketMeta.set(socket, { sessionId: snap.id, playerId: snap.hostId });
       socket.join(snap.id);
+      broadcastRoomState(io, snap);
       ack?.({ ok: true, session: snap });
     });
 
@@ -1242,7 +1402,7 @@ export function attachIo(io: IOServer, ctx: Ctx): void {
         const me = snap.players[snap.players.length - 1];
         socketMeta.set(socket, { sessionId: snap.id, playerId: me.id });
         socket.join(snap.id);
-        io.to(snap.id).emit('session:update', snap);
+        broadcastRoomState(io, snap);
         ack?.({ ok: true, session: snap, playerId: me.id });
       } catch (e: any) {
         ack?.({ error: e.message });
@@ -1256,7 +1416,7 @@ export function attachIo(io: IOServer, ctx: Ctx): void {
       if (!m) return ack?.({ error: 'no session' });
       try {
         const snap = ctx.mgr.selectGame({ sessionId: m.sessionId, actorId: m.playerId, gameId: parsed.data.gameId });
-        io.to(snap.id).emit('session:update', snap);
+        broadcastRoomState(io, snap);
         ack?.({ ok: true });
       } catch (e: any) { ack?.({ error: e.message }); }
     });
@@ -1272,6 +1432,8 @@ export function attachIo(io: IOServer, ctx: Ctx): void {
         const runner = new GameRunner(snap.id, snap.players.map(p => p.id), game.compare);
         runners.set(snap.id, runner);
         const seed = randomUUID();
+        broadcastRoomState(io, snap);
+        // game:begin은 GameFrame 부트용으로 별도 유지 (game meta + seed 포함)
         io.to(snap.id).emit('game:begin', { session: snap, game, seed });
         ack?.({ ok: true });
       } catch (e: any) { ack?.({ error: e.message }); }
@@ -1288,9 +1450,13 @@ export function attachIo(io: IOServer, ctx: Ctx): void {
         runner.submit(m.playerId, parsed.data.value);
         if (runner.isComplete()) {
           const outcome = runner.resolve();
-          ctx.mgr.finishGame({ sessionId: m.sessionId });
+          const snap = ctx.mgr.finishGame({
+            sessionId: m.sessionId,
+            loserId: outcome.loserId,
+            results: outcome.results,
+          });
           runners.delete(m.sessionId);
-          io.to(m.sessionId).emit('game:outcome', outcome);
+          broadcastRoomState(io, snap);
         } else {
           io.to(m.sessionId).emit('game:progress', {
             submittedCount: runner['submissions'].size,
@@ -1373,23 +1539,24 @@ export const socket = io({ autoConnect: false });
 import { useEffect, useState, useCallback } from 'react';
 import { socket } from '../socket';
 import type { z } from 'zod';
-import { SessionState_Payload } from '../../shared/protocol';
+import { RoomStatePayload } from '../../shared/protocol';
 
-type SessionSnap = z.infer<typeof SessionState_Payload>;
+type RoomSnap = z.infer<typeof RoomStatePayload>;
 
 export function useSession() {
-  const [session, setSession] = useState<SessionSnap | null>(null);
+  const [session, setSession] = useState<RoomSnap | null>(null);
   const [me, setMe] = useState<string | null>(null);
 
   useEffect(() => {
     if (!socket.connected) socket.connect();
-    const onUpdate = (snap: SessionSnap) => setSession(snap);
-    socket.on('session:update', onUpdate);
-    return () => { socket.off('session:update', onUpdate); };
+    // 모든 상태 갱신은 단일 채널 `room:state` 로 들어옴 (Plan B 워커 진행 단계 포함).
+    const onState = (snap: RoomSnap) => setSession(snap);
+    socket.on('room:state', onState);
+    return () => { socket.off('room:state', onState); };
   }, []);
 
   const create = useCallback(async (name: string) => {
-    return new Promise<SessionSnap>((resolve, reject) => {
+    return new Promise<RoomSnap>((resolve, reject) => {
       socket.emit('session:create', { name }, (res: any) => {
         if (res.error) return reject(new Error(res.error));
         setSession(res.session); setMe(res.session.hostId); resolve(res.session);
@@ -1398,7 +1565,7 @@ export function useSession() {
   }, []);
 
   const join = useCallback(async (roomCode: string, name: string) => {
-    return new Promise<SessionSnap>((resolve, reject) => {
+    return new Promise<RoomSnap>((resolve, reject) => {
       socket.emit('session:join', { roomCode, name }, (res: any) => {
         if (res.error) return reject(new Error(res.error));
         setSession(res.session); setMe(res.playerId); resolve(res.session);
@@ -1425,11 +1592,11 @@ export default function HomePage() {
   const [err, setErr] = useState('');
 
   const doCreate = async () => {
-    try { const s = await create(name); nav(`/lobby/${s.roomCode}`); }
+    try { const s = await create(name); nav(`/room/${s.roomCode}`); }
     catch (e: any) { setErr(e.message); }
   };
   const doJoin = async () => {
-    try { const s = await join(code.toUpperCase(), name); nav(`/lobby/${s.roomCode}`); }
+    try { const s = await join(code.toUpperCase(), name); nav(`/room/${s.roomCode}`); }
     catch (e: any) { setErr(e.message); }
   };
 
@@ -1453,25 +1620,20 @@ export default function HomePage() {
 }
 ```
 
-- [ ] **Step 10.4: `src/web/App.tsx` 갱신 — 라우팅 추가**
+- [ ] **Step 10.4: `src/web/App.tsx` 갱신 — 단일 `RoomPage` 라우팅**
 
 ```typescript
 import { Routes, Route } from 'react-router-dom';
 import HomePage from './pages/HomePage';
-import LobbyPage from './pages/LobbyPage';
-import GamePage from './pages/GamePage';
-import ResultPage from './pages/ResultPage';
-import CredentialPage from './pages/CredentialPage';
+import RoomPage from './pages/RoomPage';
 import './styles.css';
 
 export default function App() {
   return (
     <Routes>
       <Route path="/" element={<HomePage />} />
-      <Route path="/lobby/:code" element={<LobbyPage />} />
-      <Route path="/play/:code" element={<GamePage />} />
-      <Route path="/result/:code" element={<ResultPage />} />
-      <Route path="/credentials/:code" element={<CredentialPage />} />
+      {/* 단일 라우트. RoomPage가 RoomStatus에 따라 LobbyView / GameView / ResultView를 스왑. */}
+      <Route path="/room/:code" element={<RoomPage />} />
     </Routes>
   );
 }
@@ -1495,9 +1657,9 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 ```bash
 npm run dev
 ```
-- 탭1: 이름 입력 → "방 만들기" → URL `/lobby/XXXX` 이동, 룸 코드 확인
-- 탭2: 이름 입력 + 룸 코드 입력 → "참여" → 둘 다 `/lobby/XXXX` 진입
-- 이 시점에 `LobbyPage`는 아직 빈 화면이라도 OK
+- 탭1: 이름 입력 → "방 만들기" → URL `/room/XXXX` 이동, 룸 코드 확인
+- 탭2: 이름 입력 + 룸 코드 입력 → "참여" → 둘 다 `/room/XXXX` 진입
+- 이 시점에 `RoomPage`는 아직 빈 화면이라도 OK (LobbyView Task 11 에서 채움)
 
 - [ ] **Step 10.7: 커밋**
 
@@ -1508,10 +1670,12 @@ git commit -m "feat(web): HomePage and useSession hook for create/join"
 
 ---
 
-## Task 11: LobbyPage
+## Task 11: LobbyView (RoomPage의 PREPARING 단계 뷰)
 
 **Files:**
-- Create: `src/web/pages/LobbyPage.tsx`, `src/web/components/PlayerList.tsx`, `src/web/components/GameSelector.tsx`, `src/web/components/GameUpload.tsx`
+- Create: `src/web/components/LobbyView.tsx`, `src/web/components/PlayerList.tsx`, `src/web/components/GameSelector.tsx`
+
+> Lobby는 더 이상 별도 라우트가 아닌 `RoomPage` 내부의 한 뷰. 게임 업로드 UI는 제공하지 않으며, `games/` 폴더에 사전 등록된 HTML만 선택 가능. (게임 업로드는 운영자가 파일 시스템 / 별도 admin 경로로 사전 수행한다고 가정.)
 
 - [ ] **Step 11.1: `src/web/components/PlayerList.tsx`**
 
@@ -1554,55 +1718,19 @@ export function GameSelector({ selectedId, onSelect, disabled }: {
 }
 ```
 
-- [ ] **Step 11.3: `src/web/components/GameUpload.tsx`**
+- [ ] **Step 11.3: `src/web/components/LobbyView.tsx` — `RoomPage`의 `PREPARING` 단계 뷰**
 
 ```typescript
-import { useState } from 'react';
-export function GameUpload({ onUploaded }: { onUploaded: () => void }) {
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState('');
-  const handle = async (f: File) => {
-    setBusy(true); setErr('');
-    const fd = new FormData(); fd.append('file', f);
-    const res = await fetch('/api/games', { method: 'POST', body: fd });
-    if (!res.ok) setErr((await res.json()).error ?? 'upload failed');
-    else onUploaded();
-    setBusy(false);
-  };
-  return (
-    <div>
-      <input type="file" accept=".html" disabled={busy}
-             onChange={e => e.target.files?.[0] && handle(e.target.files[0])} />
-      {err && <p className="error">{err}</p>}
-    </div>
-  );
-}
-```
-
-- [ ] **Step 11.4: `src/web/pages/LobbyPage.tsx`**
-
-```typescript
-import { useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { useSession } from '../hooks/useSession';
 import { socket } from '../socket';
-import { PlayerList } from '../components/PlayerList';
-import { GameSelector } from '../components/GameSelector';
-import { GameUpload } from '../components/GameUpload';
+import { PlayerList } from './PlayerList';
+import { GameSelector } from './GameSelector';
+import type { z } from 'zod';
+import type { RoomStatePayload } from '../../shared/protocol';
 
-export default function LobbyPage() {
-  const { code } = useParams();
-  const nav = useNavigate();
-  const { session, me, setSession } = useSession();
+type Snap = z.infer<typeof RoomStatePayload>;
 
-  useEffect(() => {
-    const onBegin = (p: any) => nav(`/play/${code}`);
-    socket.on('game:begin', onBegin);
-    return () => { socket.off('game:begin', onBegin); };
-  }, [code, nav]);
-
-  if (!session || !me) return <div className="lobby">세션 정보 로딩 중...</div>;
-  const isHost = session.hostId === me;
+export function LobbyView({ snap, me }: { snap: Snap; me: string }) {
+  const isHost = snap.hostId === me;
 
   const selectGame = (id: string) => {
     socket.emit('game:select', { gameId: id }, (res: any) => res.error && alert(res.error));
@@ -1612,33 +1740,33 @@ export default function LobbyPage() {
   };
 
   return (
-    <div className="lobby">
-      <h1>방 {session.roomCode}</h1>
-      <p>공유할 코드: <strong>{session.roomCode}</strong></p>
-      <h2>참가자 ({session.players.length})</h2>
-      <PlayerList players={session.players} hostId={session.hostId} />
+    <section className="lobby">
+      <h1>방 {snap.roomCode}</h1>
+      <p>공유할 코드: <strong>{snap.roomCode}</strong></p>
+
+      <h2>참가자 ({snap.players.length})</h2>
+      <PlayerList players={snap.players} hostId={snap.hostId} />
 
       <h2>게임 선택</h2>
-      <GameSelector selectedId={session.selectedGameId} onSelect={selectGame} disabled={!isHost} />
-      {isHost && (<>
-        <h3>게임 업로드</h3>
-        <GameUpload onUploaded={() => { /* GameSelector가 자동 refetch 안 하므로 간단히 reload */
-          location.reload();
-        }} />
-        <button disabled={!session.selectedGameId} onClick={startGame}>시작!</button>
-      </>)}
-    </div>
+      <GameSelector selectedId={snap.selectedGameId} onSelect={selectGame} disabled={!isHost} />
+      {isHost && (
+        <button disabled={!snap.selectedGameId} onClick={startGame}>시작!</button>
+      )}
+      {!isHost && <p>호스트가 게임을 시작하기를 기다리는 중…</p>}
+    </section>
   );
 }
 ```
 
-- [ ] **Step 11.5: 수동 검증 — 호스트에서 게임 선택 → 참여자에게도 session:update 반영되는지 확인**
+> ⚠️ `GameUpload` 컴포넌트는 의도적으로 만들지 않는다. 사전 등록된 게임만 선택 가능. (Task 7의 업로드 API는 호스트가 데모 직전 수동으로 사용하는 운영 도구로만 사용.)
 
-- [ ] **Step 11.6: 커밋**
+- [ ] **Step 11.4: 수동 검증 — 호스트가 게임 선택 → 다른 참가자 화면에도 `room:state` 반영 확인**
+
+- [ ] **Step 11.5: 커밋**
 
 ```bash
-git add -A
-git commit -m "feat(web): LobbyPage with game selector and host controls"
+git add src/web/components/LobbyView.tsx src/web/components/PlayerList.tsx src/web/components/GameSelector.tsx
+git commit -m "feat(web): LobbyView component (PREPARING stage of RoomPage)"
 ```
 
 ---
@@ -1646,7 +1774,9 @@ git commit -m "feat(web): LobbyPage with game selector and host controls"
 ## Task 12: GameFrame + postMessage 브리지
 
 **Files:**
-- Create: `src/web/hooks/useGameFrame.ts`, `src/web/components/GameFrame.tsx`, `src/web/pages/GamePage.tsx`
+- Create: `src/web/hooks/useGameFrame.ts`, `src/web/components/GameFrame.tsx`, `src/web/components/GameView.tsx`
+
+> `GameView`는 별도 라우트가 아닌 `RoomPage`의 `PLAYING` 단계 뷰다.
 
 - [ ] **Step 12.1: `src/web/hooks/useGameFrame.ts`**
 
@@ -1721,20 +1851,18 @@ export function GameFrame({ gameUrl, playerId, players, sessionId, seed, onSubmi
 }
 ```
 
-- [ ] **Step 12.3: `src/web/pages/GamePage.tsx`**
+- [ ] **Step 12.3: `src/web/components/GameView.tsx` — `RoomPage`의 `PLAYING` 단계 뷰**
 
 ```typescript
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
 import { socket } from '../socket';
-import { useSession } from '../hooks/useSession';
-import { GameFrame } from '../components/GameFrame';
-import type { GameMeta } from '../../shared/protocol';
+import { GameFrame } from './GameFrame';
+import type { z } from 'zod';
+import type { GameMeta, RoomStatePayload } from '../../shared/protocol';
 
-export default function GamePage() {
-  const { code } = useParams();
-  const nav = useNavigate();
-  const { session, me } = useSession();
+type Snap = z.infer<typeof RoomStatePayload>;
+
+export function GameView({ snap, me }: { snap: Snap; me: string }) {
   const [game, setGame] = useState<GameMeta | null>(null);
   const [seed, setSeed] = useState('');
   const [outcome, setOutcome] = useState<any>(null);
@@ -1744,10 +1872,9 @@ export default function GamePage() {
     const onBegin = (p: { game: GameMeta; seed: string }) => {
       setGame(p.game); setSeed(p.seed);
     };
-    const onOutcome = (o: any) => {
-      setOutcome(o);
-      setTimeout(() => nav(`/result/${code}`, { state: o }), 3000);
-    };
+    // FINISHED 전이는 RoomPage가 room:state로 받아 ResultView로 자동 전환.
+    // 여기서는 outcome 애니메이션만 짧게 유지.
+    const onOutcome = (o: any) => setOutcome(o);
     const onProgress = (p: any) => setProgress(p);
     socket.on('game:begin', onBegin);
     socket.on('game:outcome', onOutcome);
@@ -1757,28 +1884,28 @@ export default function GamePage() {
       socket.off('game:outcome', onOutcome);
       socket.off('game:progress', onProgress);
     };
-  }, [code, nav]);
+  }, []);
 
-  if (!session || !me || !game) return <div className="game">게임 로딩 중...</div>;
+  if (!game) return <div className="game">게임 로딩 중...</div>;
 
   const submit = (value: number) => {
     socket.emit('player:submit', { value }, (res: any) => res.error && alert(res.error));
   };
 
   return (
-    <div className="game">
+    <section className="game">
       <h1>{game.title}</h1>
       {progress && <p>제출 {progress.submittedCount}/{progress.total}</p>}
       <GameFrame
         gameUrl={`/games/${game.filename}`}
         playerId={me}
-        players={session.players}
-        sessionId={session.sessionId}
+        players={snap.players}
+        sessionId={snap.sessionId}
         seed={seed}
         onSubmit={submit}
         showOutcome={outcome}
       />
-    </div>
+    </section>
   );
 }
 ```
@@ -1787,89 +1914,198 @@ export default function GamePage() {
 
 ```bash
 git add -A
-git commit -m "feat(web): iframe postMessage bridge and GamePage"
+git commit -m "feat(web): iframe postMessage bridge and GameView"
 ```
 
 ---
 
-## Task 13: 결과 페이지 + Credential 스텁
+## Task 13: RoomPage + ResultView + CredentialForm 스텁
 
 **Files:**
-- Create: `src/web/pages/ResultPage.tsx`, `src/web/pages/CredentialPage.tsx`
+- Create: `src/web/pages/RoomPage.tsx`, `src/web/components/ResultView.tsx`, `src/web/components/CredentialForm.tsx`, `src/web/components/StatusBadge.tsx`
 
-- [ ] **Step 13.1: `src/web/pages/ResultPage.tsx`**
+> Plan A에는 패자 발표(`FINISHED`)와 자격증명 입력 CTA + 스텁까지만 작성. Plan B Task 3·11 이 같은 컴포넌트의 채움 로직을 완성한다.
+
+- [ ] **Step 13.1: `src/web/components/StatusBadge.tsx`**
 
 ```typescript
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { useSession } from '../hooks/useSession';
+import type { z } from 'zod';
+import type { RoomStatus } from '../../shared/protocol';
 
-export default function ResultPage() {
-  const { code } = useParams();
-  const { state } = useLocation();
-  const nav = useNavigate();
-  const { session, me } = useSession();
+const LABEL: Record<z.infer<typeof RoomStatus>, string> = {
+  PREPARING: '준비',
+  PLAYING: '게임 중',
+  FINISHED: '게임 완료',
+  CREDENTIAL_INPUT: '상신 준비',
+  QUEUED: '상신 대기',
+  RUNNING: '상신 중',
+  COMPLETED: '상신 성공',
+  FAILED: '상신 실패',
+  ABORTED: '중단',
+};
 
-  if (!session || !state) return <div className="result">결과 없음</div>;
-  const loser = session.players.find(p => p.id === (state as any).loserId);
-  const iAmLoser = me === (state as any).loserId;
+export function StatusBadge({ status }: { status: z.infer<typeof RoomStatus> }) {
+  return <span className={`badge badge-${status.toLowerCase()}`}>{LABEL[status]}</span>;
+}
+```
+
+- [ ] **Step 13.2: `src/web/components/ResultView.tsx` — `FINISHED` 이후 모든 단계의 본문**
+
+```typescript
+import { useState } from 'react';
+import type { z } from 'zod';
+import type { RoomStatePayload } from '../../shared/protocol';
+import { StatusBadge } from './StatusBadge';
+import { CredentialForm } from './CredentialForm';
+
+type Snap = z.infer<typeof RoomStatePayload>;
+
+export function ResultView({ snap, me }: { snap: Snap; me: string }) {
+  const loser = snap.players.find(p => p.id === snap.loserId);
+  const iAmLoser = me === snap.loserId;
+  const [showForm, setShowForm] = useState(false);
 
   return (
-    <div className="result">
-      <h1>🎲 패자 발표</h1>
-      <div style={{ fontSize: 48, textAlign: 'center', margin: 40 }}>
-        💀 <strong>{loser?.name}</strong>
-      </div>
-      <ul>
-        {(state as any).results.map((r: any) => {
-          const p = session.players.find(pp => pp.id === r.playerId);
-          return <li key={r.playerId}>{p?.name}: {r.value}</li>;
-        })}
-      </ul>
-      {iAmLoser && (
-        <button onClick={() => nav(`/credentials/${code}`)}>품의서 상신 예약하기</button>
+    <section className="result">
+      <header>
+        <h1>🎲 패자 발표 <StatusBadge status={snap.status} /></h1>
+        <div style={{ fontSize: 48, textAlign: 'center', margin: 40 }}>
+          💀 <strong>{loser?.name ?? '???'}</strong>
+        </div>
+        {snap.results && (
+          <ul>
+            {snap.results.map(r => {
+              const p = snap.players.find(pp => pp.id === r.playerId);
+              return <li key={r.playerId}>{p?.name}: {r.value}</li>;
+            })}
+          </ul>
+        )}
+      </header>
+
+      {/* FINISHED: 패자에게만 CTA. 다른 사람은 대기 안내. */}
+      {snap.status === 'FINISHED' && iAmLoser && !showForm && (
+        <button onClick={() => setShowForm(true)}>ERP 자격증명 입력하기</button>
       )}
-    </div>
+      {snap.status === 'FINISHED' && !iAmLoser && (
+        <p>패자가 자격증명을 입력할 때까지 잠시 기다려주세요…</p>
+      )}
+
+      {/* CREDENTIAL_INPUT: 패자에게는 인라인 폼, 다른 사람은 대기 안내. */}
+      {(snap.status === 'CREDENTIAL_INPUT' || (snap.status === 'FINISHED' && showForm)) && (
+        iAmLoser
+          ? <CredentialForm sessionId={snap.sessionId} loserId={snap.loserId!} />
+          : <p>패자가 자격증명 입력 중입니다…</p>
+      )}
+
+      {/* QUEUED: 모두에게 스케줄 + 패자에게 데모 즉시 실행 버튼 */}
+      {snap.status === 'QUEUED' && (
+        <div>
+          <p>다음 영업일 09:00에 자동 상신 예정 ({snap.scheduledAt && new Date(snap.scheduledAt).toLocaleString()})</p>
+          {iAmLoser && snap.submissionId && (
+            <button onClick={() => fetch(`/api/submissions/${snap.submissionId}/run-now`, { method: 'POST' })}>
+              지금 상신 실행 (데모)
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* RUNNING: 워커 진행 단계 표시 */}
+      {snap.status === 'RUNNING' && (
+        <ol className="worker-steps">
+          {(['login','cardModal','formFill','approval'] as const).map(step => (
+            <li key={step} className={snap.workerStep === step ? 'active' : ''}>{step}</li>
+          ))}
+        </ol>
+      )}
+
+      {/* 종결 상태 */}
+      {snap.status === 'COMPLETED' && (
+        <p>✅ ERP 참조번호: <code>{snap.erpRefNo}</code></p>
+      )}
+      {snap.status === 'FAILED' && (
+        <p role="alert">❌ {snap.errorLog}</p>
+      )}
+    </section>
   );
 }
 ```
 
-- [ ] **Step 13.2: `src/web/pages/CredentialPage.tsx` (Plan B에서 와이어링)**
+- [ ] **Step 13.3: `src/web/components/CredentialForm.tsx` (Plan A 스텁 — Plan B Task 3에서 본문 와이어링)**
 
 ```typescript
-import { useParams } from 'react-router-dom';
 import { useState } from 'react';
 
-export default function CredentialPage() {
-  const { code } = useParams();
-  const [id, setId] = useState(''); const [pw, setPw] = useState('');
-  const [done, setDone] = useState(false);
+export function CredentialForm({ sessionId, loserId }: { sessionId: string; loserId: string }) {
+  const [loginId, setLoginId] = useState('');
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const submit = async () => {
-    // Plan B: POST /api/submissions { sessionId, erpId, erpPw }
-    // 지금은 스텁
-    alert('Plan B에서 자동 상신 예약 로직을 연결합니다.');
-    setDone(true);
-  };
-
-  if (done) return <div className="cred"><h2>예약 완료 (스텁)</h2><p>다음 영업일 09:00에 자동 상신 예정</p></div>;
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true); setError(null);
+    try {
+      // Plan B Task 3: POST /api/credentials → POST /api/sessions/:id/submissions
+      // 두 호출이 모두 성공하면 서버가 status를 CREDENTIAL_INPUT → QUEUED로 transition 후 broadcast.
+      // Plan A 단계에서는 alert 스텁만.
+      alert('Plan B 에서 vault 저장 + queue enqueue 로직을 연결합니다.');
+    } catch (e: any) { setError(e.message); }
+    finally { setBusy(false); }
+  }
 
   return (
-    <div className="cred">
-      <h1>ERP 자격증명 입력</h1>
-      <p>세션 {code}의 품의서를 다음 영업일 09:00에 자동으로 상신합니다.</p>
-      <input placeholder="아마란스 ID" value={id} onChange={e => setId(e.target.value)} />
-      <input placeholder="아마란스 PW" type="password" value={pw} onChange={e => setPw(e.target.value)} />
-      <button disabled={!id || !pw} onClick={submit}>예약하기</button>
-    </div>
+    <form onSubmit={submit} className="credential-form">
+      <h2>ERP 자격증명 입력 (패자)</h2>
+      <p>회사코드 <code>meissa</code> 는 자동 입력됩니다. ID/PW만 주세요.</p>
+      <label>ID<input value={loginId} onChange={e => setLoginId(e.target.value)} autoComplete="off" required /></label>
+      <label>PW<input type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="new-password" required /></label>
+      {error && <p role="alert">{error}</p>}
+      <button disabled={busy}>{busy ? '저장 중…' : '저장하고 상신 예약'}</button>
+    </form>
   );
 }
 ```
 
-- [ ] **Step 13.3: 커밋**
+- [ ] **Step 13.4: `src/web/pages/RoomPage.tsx` — 단일 라우트, status에 따라 뷰 스왑**
+
+```typescript
+import { useEffect } from 'react';
+import { useParams } from 'react-router-dom';
+import { useSession } from '../hooks/useSession';
+import { LobbyView } from '../components/LobbyView';
+import { GameView } from '../components/GameView';
+import { ResultView } from '../components/ResultView';
+
+export default function RoomPage() {
+  const { code } = useParams();
+  const { session, me } = useSession();
+
+  // 새로고침/직접 진입 대비: roomCode → 서버에서 현재 스냅샷 페치 (room:state 도 곧 들어옴)
+  useEffect(() => {
+    if (!code || session) return;
+    fetch(`/api/sessions/${code}`)
+      .then(r => r.ok ? r.json() : null)
+      // setSession은 useSession 외부에서 다루지 않으므로 보조 hook이 필요할 수도 있음.
+      // PoC에서는 socket reconnect 후 자동 재구독으로 충분.
+      .catch(() => {});
+  }, [code, session]);
+
+  if (!session || !me) return <div className="room">방 정보 로딩 중…</div>;
+
+  switch (session.status) {
+    case 'PREPARING': return <LobbyView snap={session} me={me} />;
+    case 'PLAYING':   return <GameView  snap={session} me={me} />;
+    // FINISHED 이후 모든 상태(CREDENTIAL_INPUT/QUEUED/RUNNING/COMPLETED/FAILED)는 ResultView가 분기 표현.
+    default:          return <ResultView snap={session} me={me} />;
+  }
+}
+```
+
+- [ ] **Step 13.5: 커밋**
 
 ```bash
-git add -A
-git commit -m "feat(web): ResultPage reveal + CredentialPage stub"
+git add src/web/pages/RoomPage.tsx src/web/components/ResultView.tsx src/web/components/CredentialForm.tsx src/web/components/StatusBadge.tsx
+git commit -m "feat(web): RoomPage + ResultView (status-driven view swap, CredentialForm stub)"
 ```
 
 ---
@@ -2041,7 +2277,7 @@ document.getElementById('b').onclick = () => {
 npm run dev
 ```
 - 탭1 (호스트): 방 생성 → 게임 "숫자 맞추기" 선택 → 시작
-- 탭2 (참여자): 룸 코드 입력 → 참여 → 게임 시작 감지 → 각자 숫자 제출 → 결과 페이지 진입
+- 탭2 (참여자): 룸 코드 입력 → 참여 → 게임 시작 감지 → 각자 숫자 제출 → 같은 `/room/XXXX` URL이 ResultView로 전환되어 패자 발표
 
 - [ ] **Step 14.5: 커밋**
 
@@ -2055,15 +2291,16 @@ git commit -m "feat(games): 3 sample games (number-guess, reaction, coin-flip)"
 ## Task 15: 통합 연출 & 폴리싱
 
 **Files:**
-- Update: `src/web/pages/ResultPage.tsx`, `src/web/styles.css`
+- Update: `src/web/components/ResultView.tsx`, `src/web/components/LobbyView.tsx`, `src/web/styles.css`
 
-- [ ] **Step 15.1: 결과 페이지에 사운드·애니메이션 추가 (시간 허락 시)**
+- [ ] **Step 15.1: ResultView가 FINISHED로 전환되는 순간 사운드·애니메이션 (시간 허락 시)**
 
 ```typescript
-// ResultPage.tsx 상단 추가
+// ResultView.tsx 상단 추가
 import { useEffect } from 'react';
 // ...
 useEffect(() => {
+  if (snap.status !== 'FINISHED') return;
   // 간단한 드럼롤 → 비프
   const ctx = new AudioContext();
   const osc = ctx.createOscillator(); osc.type = 'sawtooth';
@@ -2073,14 +2310,13 @@ useEffect(() => {
   gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 2);
   osc.connect(gain).connect(ctx.destination);
   osc.start(); osc.stop(ctx.currentTime + 2);
-}, []);
+}, [snap.status]);
 ```
 
-- [ ] **Step 15.2: 로비에 룸 코드 복사 버튼 추가 (편의)**
+- [ ] **Step 15.2: LobbyView에 룸 코드 복사 버튼 추가 (편의)**
 
-LobbyPage에 추가:
 ```typescript
-<button onClick={() => navigator.clipboard.writeText(session.roomCode)}>룸 코드 복사</button>
+<button onClick={() => navigator.clipboard.writeText(snap.roomCode)}>룸 코드 복사</button>
 ```
 
 - [ ] **Step 15.3: 커밋**
@@ -2109,14 +2345,15 @@ git commit -m "feat(web): polish — drumroll sound and copy-code button"
 - [ ] 4대 PC 간 네트워크 연결 확인 (유선 권장)
 - [ ] 샘플 게임 3종 플레이 테스트
 
-## 데모 당일 시나리오
+## 데모 당일 시나리오 (모두 같은 `/room/XXXX` URL 안에서 진행됨)
 1. 호스트 PC에서 `npm start` (prod 모드) 또는 `npm run dev`
 2. 4대 PC에서 http://<host-ip>:3000 접속 (또는 5173)
-3. 호스트: "방 만들기" → 룸 코드 공유
-4. 3명: 룸 코드 입력 → 참여
-5. 호스트: 게임 선택 → "시작"
-6. 각자 플레이 → 패자 발표
-7. (Plan B 완성 후) 패자가 자격증명 입력 → "즉시 실행" 버튼 → 아마란스 상신 연출
+3. 호스트: "방 만들기" → 룸 코드 공유 → 모두 `PREPARING` (LobbyView)
+4. 3명: 룸 코드 입력 → 참여 → 여전히 `PREPARING`
+5. 호스트: 게임 선택 → "시작" → 모두 `PLAYING` (GameView)
+6. 각자 플레이 → 패자 결정 → 모두 `FINISHED` (ResultView, 패자 발표)
+7. 패자: 인라인 CredentialForm에 ID/PW 입력 → 저장 → `CREDENTIAL_INPUT` → `QUEUED`
+8. (데모) 패자: "지금 상신 실행" → `RUNNING` (워커 진행 단계 indicator) → `COMPLETED` (ERP 참조번호) 또는 `FAILED` (errorLog)
 
 ## 플랜 B (ERP 불안정 시)
 - `.env`에 `MOCK_MODE=true` → Playwright 대신 사전 캡처 스크린샷 연출
@@ -2137,26 +2374,33 @@ git commit -m "docs: demo rehearsal checklist"
 2. ✅ 참가자가 룸 코드로 참여하면 모든 참가자의 브라우저에 즉시 업데이트된 참가자 목록이 표시된다.
 3. ✅ 호스트가 게임을 선택하고 시작을 누르면 모든 브라우저에서 iframe 게임이 동시에 로드된다.
 4. ✅ 각 플레이어가 `submit(value)`를 보내면 서버가 수집하고, 전원 제출 시 `compare` 규칙으로 패자를 결정해 broadcast한다.
-5. ✅ 결과 페이지가 패자를 발표하고, 패자에게는 "상신 예약" CTA가 노출된다 (Credential 페이지는 스텁).
-6. ✅ 즉석에서 새 HTML 게임을 업로드하면 게임 목록에 즉시 나타나고 선택·플레이 가능하다.
-7. ✅ 주요 로직(룸 코드·레지스트리·세션·러너·프로토콜)의 유닛 테스트가 녹색이다 (`npm test`).
+5. ✅ ResultView (`/room/:code` 내부 뷰)가 패자를 발표하고, 패자에게는 인라인 `CredentialForm`이 노출된다 (Plan A 단계에서는 폼 제출 시 alert 스텁).
+6. ✅ Room 상태머신 9개 값(`PREPARING`~`ABORTED`)이 단일 `room:state` socket 이벤트로 전체 클라이언트에 broadcast된다.
+7. ✅ 운영자가 사전 등록한 게임만 `GameSelector`에 노출된다. 로비에서 사용자가 새 게임을 업로드하는 UI는 없다.
+8. ✅ 주요 로직(룸 코드·레지스트리·세션·러너·프로토콜)의 유닛 테스트가 녹색이다 (`npm test`).
 
 ## 팀 병렬 작업 제안
 
-| 담당 | Task |
-|------|------|
-| Dev 1 (백엔드 메인) | Task 1~3, 5, 8, 9 |
-| Dev 2 (자동화 전담) | Plan B (Q6 이후). 그 전에는 아마란스 수동 탐색 + DOM 캡처 보조 |
-| Dev 3 (웹 UI) | Task 10, 11, 13, 15 |
-| Dev 4 (게임·브리지) | Task 6, 7, 12, 14 |
+| 담당 | Plan A Task |
+|------|-------------|
+| Dev 1, 2 (게임 제작·업로드) | Task 14 주도 — 샘플 게임 3종 + 추가 게임 양산. 운영자가 사전 등록할 게임 HTML을 `games/` 폴더에 직접 추가 (또는 Task 7의 admin 업로드 API를 운영자 권한으로 호출) |
+| Dev 3 (플랫폼 UI 디자인·구현) | Task 10, 11, 12, 13, 15 — HomePage · LobbyView · GameView · RoomPage/ResultView/CredentialForm 스텁 · 통합 연출. 디자인 시안·스타일 포함 |
+| Dev 4 (백엔드·핵심 엔진) | Task 1~9, 16 — 스캐폴딩·protocol·DB·roomCode·SessionManager(상태머신 포함)·GameRegistry·게임 업로드 API·GameRunner·Socket.io. 데모 리허설 주도 |
 
-Task 2 (shared/protocol) 와 Task 4 (roomCode) 는 초기에 Dev 1이 담당하되, 완료 후 공용 토대가 되므로 다른 개발자가 이를 기준으로 병렬 작업 가능.
+- **공용 토대 선행 (Dev 4):** Task 1 (스캐폴딩)·Task 2 (shared/protocol)·Task 3 (DB)·Task 4 (roomCode) 를 최우선으로 완료 → 나머지 인원이 이를 기준으로 병렬 착수.
+- **게임 ↔ 엔진 계약:** Dev 4 가 Task 6 (레지스트리)·Task 8 (러너) 을 먼저 안정화해 `<meta>` 태그·`postMessage` 계약을 확정하면, Dev 1/2 가 동일 계약으로 게임을 병렬 생산.
+- **UI ↔ 엔진 계약:** Dev 4 가 `shared/protocol` zod 스키마를 정의하면, Dev 3 는 이를 import 해 타입 안전하게 UI 작성. 초기에 엔진이 준비되기 전까지는 stub/mock socket 으로 UI 먼저 작업.
+- **재미 심사 집중:** 게임 다양화(운·실력·참여형)를 위해 2명이 게임 제작에 투입. Dev 1 이 먼저 1~2 게임으로 SDK 사용성을 입증하면, Dev 2 가 추가 게임을 현장 제작해 운영자 admin 권한으로 사전 등록.
+- **Plan B 범위 참고:** 핵심 엔진 성격이므로 Plan B 전체는 Dev 4 가 담당. 단 Plan B Task 3 (`CredentialForm` 채우기)·Task 11 의 프론트 부분(`ResultView` 후속 단계 표시)은 UI 영역이라 Dev 3 에 이관.
 
 ---
 
 ## Self-Review 체크리스트 (계획 완료 시 점검)
 
 - [ ] 스펙 §4.3~4.5의 각 항목이 Plan의 어떤 Task에서 구현되는지 점검 — 게임 SDK(§4.3)는 Task 2+12+14, DB(§4.5)는 Task 3, 세션(§4.2)은 Task 5+9. OK
-- [ ] placeholder 없음 — 각 Step이 실제 코드/명령을 포함. CredentialPage만 Plan B 스텁으로 명시. OK
+- [ ] placeholder 없음 — 각 Step이 실제 코드/명령을 포함. CredentialForm만 Plan B Task 3에서 본문 채움 명시. OK
+- [ ] Room 상태머신 9개 값이 protocol/DB/SessionManager/io.ts/RoomPage 모든 레이어에 일관되게 반영. OK
+- [ ] LobbyPage에서 GameUpload 컴포넌트 제거. 사전 등록된 게임만 선택 가능. (Task 7 업로드 API는 운영자 admin 도구로 잔존) OK
+- [ ] 별도 ResultPage 라우트 제거. `/room/:code` 단일 라우트가 RoomStatus에 따라 LobbyView/GameView/ResultView 스왑. OK
 - [ ] 타입 일관성 — `SessionSnapshot`, `GameMeta`, `Player`, `SocketJoin` 등이 shared/protocol에서 정의되고 서버/웹에서 동일하게 import됨. OK
 - [ ] Plan B 의존성 — Credential 저장/큐/Scheduler/Playwright는 Plan B 범위. Task 13이 이를 스텁으로 명시. OK
