@@ -5,6 +5,8 @@ import { resolveMode } from './mode';
 import { launchBrowser } from './browser';
 import { makeScreenshotDir, snap } from './screenshots';
 import { login, LoginError } from './login';
+import { openWriteForm } from './navigate';
+import { openCardModal, selectCardRow, NoMatchError } from './cardModal';
 import type { WorkerResult, WorkerDeps, WorkerMode } from './types';
 
 export type { WorkerResult, WorkerDeps, WorkerMode };
@@ -31,6 +33,34 @@ function loginUrlFor(mode: WorkerMode): string {
 }
 
 /**
+ * Returns the write-form base URL for the given mode.
+ * - mock:    local file:// URL pointing to mock/erp-writeform.html (without hash/query)
+ * - live/dryrun: process.env.ERP_BASE_URL (must be set)
+ */
+function writeFormBaseUrl(mode: WorkerMode): string {
+  if (mode === 'mock') {
+    return pathToFileURL(
+      join(dirname(fileURLToPath(import.meta.url)), 'mock', 'erp-writeform.html'),
+    ).toString();
+  }
+  return process.env['ERP_BASE_URL'] ?? (() => { throw new Error('ERP_BASE_URL not set'); })();
+}
+
+/**
+ * Converts a Date to a YYYYMMDD string in Asia/Seoul (KST) timezone.
+ */
+function toKstDateString(date: Date): string {
+  const parts = new Intl.DateTimeFormat('ko-KR', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+  // parts is like "2026. 04. 06." → extract digits only
+  return parts.replace(/\D/g, '');
+}
+
+/**
  * Called by 4A (server) to inject vault/submission dependencies.
  * Must be called before any runSubmission() invocation.
  */
@@ -43,8 +73,8 @@ export function initWorker(deps: WorkerDeps): void {
  *
  * Modes:
  *  - dryrun: creates screenshot dir and returns COMPLETED immediately
- *  - mock:   launches headed Chromium, logs "not implemented yet", returns FAILED_OTHER
- *  - live:   same stub behaviour as mock for now (not implemented)
+ *  - mock:   launches headed Chromium, performs login + cardModal steps
+ *  - live:   same behaviour as mock against real ERP
  */
 export async function runSubmission(submissionId: string): Promise<WorkerResult> {
   if (_deps === null) {
@@ -99,14 +129,62 @@ export async function runSubmission(submissionId: string): Promise<WorkerResult>
       return { status: 'FAILED_AUTH', erpRefNo: null, sunginNb: null, screenshotDir, errorLog };
     }
 
-    // Subsequent steps (B8+) — not implemented yet
-    console.log(`[worker] runSubmission(${submissionId}) mode=${mode} — login OK, remaining steps not implemented yet`);
+    // Step: cardModal
+    await deps.reportStep(sub.sessionId, 'cardModal');
+
+    try {
+      await openWriteForm(page, writeFormBaseUrl(mode));
+    } catch (e) {
+      await snap(page, screenshotDir, 'writeform-fail');
+      const errorLog = String(e);
+      await deps.fail(submissionId, { status: 'FAILED_UNEXPECTED_UI', errorLog, screenshotDir });
+      return { status: 'FAILED_UNEXPECTED_UI', erpRefNo: null, sunginNb: null, screenshotDir, errorLog };
+    }
+
+    try {
+      await openCardModal(page);
+    } catch (e) {
+      await snap(page, screenshotDir, 'cardmodal-open-fail');
+      const errorLog = String(e);
+      await deps.fail(submissionId, { status: 'FAILED_UNEXPECTED_UI', errorLog, screenshotDir });
+      return { status: 'FAILED_UNEXPECTED_UI', erpRefNo: null, sunginNb: null, screenshotDir, errorLog };
+    }
+
+    // TODO: cardCd should come from submission data once the field is added
+    const cardCd = '5105545000378130';
+    const sessionDate = toKstDateString(sub.scheduledAt);
+    const sessionStartedAt = sub.scheduledAt;
+    const excludeSunginNbs = await deps.allSuccessfulSunginNbs();
+
+    let sunginNb: string;
+    try {
+      sunginNb = await selectCardRow(page, {
+        cardCd,
+        sessionDate,
+        sessionStartedAt,
+        toleranceMinutes: 180,
+        excludeSunginNbs,
+      });
+    } catch (e) {
+      await snap(page, screenshotDir, 'cardrow-select-fail');
+      if (e instanceof NoMatchError) {
+        const errorLog = e.message;
+        await deps.fail(submissionId, { status: 'FAILED_NO_TXN', errorLog, screenshotDir });
+        return { status: 'FAILED_NO_TXN', erpRefNo: null, sunginNb: null, screenshotDir, errorLog };
+      }
+      const errorLog = String(e);
+      await deps.fail(submissionId, { status: 'FAILED_UNEXPECTED_UI', errorLog, screenshotDir });
+      return { status: 'FAILED_UNEXPECTED_UI', erpRefNo: null, sunginNb: null, screenshotDir, errorLog };
+    }
+
+    // Subsequent steps (B9+) — not implemented yet
+    console.log(`[worker] runSubmission(${submissionId}) mode=${mode} — cardModal OK (sunginNb=${sunginNb}), remaining steps not implemented yet`);
     const result = {
       status: 'FAILED_OTHER' as const,
       erpRefNo: null,
-      sunginNb: null,
+      sunginNb,
       screenshotDir,
-      errorLog: 'runSubmission: steps after login not implemented yet',
+      errorLog: 'runSubmission: steps after cardModal not implemented yet',
     };
     await deps.fail(submissionId, {
       status: result.status,
