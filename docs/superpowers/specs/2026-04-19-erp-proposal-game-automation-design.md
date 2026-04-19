@@ -54,8 +54,8 @@ ERP에 접속해 카드사용내역을 일일이 검색하고 품의서를 작�
 
 ### 핵심 흐름
 1. 방 생성 → 룸 코드 발급 → 3명 참여
-2. 게임 선택 → 모두의 iframe에 게임 로드 → postMessage로 진행
-3. iframe이 `loserId`를 서버에 전송 → 패자 확정 & broadcast
+2. 게임 선택 → 모두의 iframe에 게임 로드 → 각자 플레이 후 `submit(value)` 전송
+3. 서버가 모든 `submit`을 수집 → 게임 메타의 `compare` 규칙으로 패자 결정 → `outcome` broadcast
 4. 패자가 자격증명 입력 → 암호화 저장 + 다음 영업일 09:00 예약
 5. 스케줄 시각에 Playwright 워커가 ERP 로그인 → 카드내역 조회 → 품의서 상신
 
@@ -79,40 +79,36 @@ ERP에 접속해 카드사용내역을 일일이 검색하고 품의서를 작�
 
 ### 4.3 게임 플러그인 SDK
 
-**모델:** 각 플레이어가 자기 PC의 iframe에서 독립적으로 플레이. 각 iframe은 숫자형 `value` 하나만 반환. 서버가 게임 메타에 선언된 **comparator** 규칙(`max` or `min`)으로 모든 값을 비교해 패자를 결정.
+**설계 원칙 (서버 컴퍼레이터 모델):** 각 플레이어는 자신의 PC에서 독립된 iframe을 실행한다. iframe은 본인의 결과 `value`만 계산해 보내고, **서버가 모든 제출값을 수집·비교해 패자를 결정**한다. iframe은 다른 참가자의 상태를 알 필요가 없다.
 
-**메타데이터 선언 (게임 HTML 파일 내 `<meta>` 태그)**
+**메타데이터 선언 (게임 HTML 파일 내)**
 ```html
 <meta name="game:title" content="숫자 맞추기">
 <meta name="game:min-players" content="2">
 <meta name="game:max-players" content="8">
-<meta name="game:description" content="서버가 정한 숫자에서 가장 먼 값을 낸 사람 패배">
-<meta name="game:compare" content="max">  <!-- max: 높은 value 패배, min: 낮은 value 패배 -->
+<meta name="game:description" content="1-100 중 고른 숫자가 정답에서 가장 먼 사람 패배">
+<meta name="game:compare" content="max">  <!-- max | min : 해당 방향의 극값이 패자 -->
 ```
 
 **postMessage 계약**
 ```
 # Host → iframe
-{ type: "init", playerId: "p1", allPlayers: [{id, name}], seed?: number }
+{ type: "init", playerId: "p2", players: [{id, name}], sessionId, seed: "..." }
 { type: "start" }
-{ type: "outcome", loserId: "p3", results: [{playerId, value}] }  // 모든 제출 완료 후
+{ type: "outcome", loserId: "p3", results: [{playerId, value}] }  // 서버 판정 후
 
 # iframe → Host
-{ type: "ready" }                            // init 수신 후
-{ type: "submit", value: 42 }                // 플레이어가 결과 제출 (숫자 1회)
+{ type: "ready" }                        // init 수신 후
+{ type: "submit", value: <number> }      // 이 플레이어의 결과값 (수치 하나)
 ```
-
-**서버 결정 로직**
-1. 모든 참가자의 `{submit, value}` 수집 (타임아웃 60초)
-2. 게임 메타 `compare`에 따라 max 또는 min 값을 낸 플레이어가 패자
-3. 동률이면 참가자 리스트 중 첫 번째 매칭자 선택 (결정론적)
-4. 모든 iframe에 `outcome` 전송 → iframe은 결과 연출 담당
 
 **제약**
 - iframe `sandbox="allow-scripts"` — 네트워크/쿠키 접근 차단
-- 60초 내 `submit` 미수신 참가자는 comparator에 따라 자동 패배 처리 (max면 +Infinity, min면 -Infinity로 간주)
-- 중복 `submit` 수신 시 첫 번째만 유효
-- `seed`는 결정적 랜덤이 필요한 게임(예: 숫자 맞추기의 정답)에 사용. 서버가 세션 시작 시 생성해 모든 iframe에 동일값 전달
+- 결정적 랜덤이 필요한 게임은 `init.seed`를 사용해 모든 참가자가 동일 조건
+- 60초 내 `submit` 미수신 시 host가 타임아웃 처리 (미제출자는 자동 패자 후보)
+- iframe은 한 번의 `submit`만 전송. 중복 시 첫 번째만 유효
+- `compare: max` → 제출값 중 최댓값을 낸 플레이어가 패자. `min`이면 최솟값
+- 동점 발생 시 서버가 랜덤 tiebreak
 
 ### 4.4 자동화 워커
 - 입력: `submissionId` → DB에서 복호화 자격증명, 참가자 목록, 세션 메타 조회
@@ -136,8 +132,9 @@ credentials    (userId, encryptedBlob, iv, updatedAt)
 ### Phase 1-2 · 실시간 (게임)
 - Host가 `POST /session` → 룸 코드 발급
 - 나머지는 Socket.io로 join → 참가자 목록 broadcast
-- 게임 선택 & Start → 모든 클라이언트 iframe 로드
-- iframe → `postMessage: finished + loserId` → 서버 확정 → broadcast
+- 게임 선택 & Start → 모든 클라이언트 iframe 로드 (각자에게 `init(playerId, seed)` 전송)
+- 각 iframe이 `submit(value)` 전송 → 서버가 전원 제출 대기
+- 전원 제출 또는 60초 타임아웃 시 서버가 `compare` 규칙으로 패자 결정 → `outcome` broadcast
 
 ### Phase 3-4 · 예약 → 다음 날 실행
 - 패자 자격증명 입력 → AES-GCM 암호화 저장
@@ -158,13 +155,14 @@ credentials    (userId, encryptedBlob, iv, updatedAt)
 - 서버: 끊긴 참가자는 `DISCONNECTED` 마킹 후 30초 유예. 게임 중 끊김은 세션 `ABORTED` (PoC 한계)
 
 ### 6.2 게임 iframe
-- 60초 타임아웃: 재시도/다른 게임 안내
+- 60초 내 일부 플레이어가 `submit` 미제출 시: 서버가 미제출자를 패자 후보로 처리 (또는 세션 `ABORTED` · 구현 시 선택)
 - 메시지 스키마 검증 (zod 등): 무효 메시지 무시 + 로그
 - iframe 크래시: `allow-scripts`만 허용하므로 host 보호. load 실패 감지 시 교체 안내
 
 ### 6.3 패자 결정 방어
-- `loserId`가 참가자 리스트에 없으면 거부 + 세션 `ABORTED`
-- 중복 `finished` 메시지: 첫 번째만 유효
+- 제출 `value`가 수치가 아니거나 이상치면 해당 플레이어 무효 처리
+- 중복 `submit`: 첫 번째만 유효
+- 동점 tiebreak: 서버 랜덤 (seed 사용 가능)
 
 ### 6.4 자격증명 / ERP 자동화
 - **로그인 실패** → `FAILED_AUTH` + 패자에게 재입력 안내
