@@ -219,5 +219,5 @@ Contract-First 로 독립 작업을 풀려면 **이 2h 안에 다음 파일들�
 ## 9. 후속 작업
 
 본 설계안 승인 후:
-1. `docs/handoff/README.md` · `dev3-ui.md` · `dev4-engine.md` 를 본 설계 기준으로 재작성 (새 핸드오프는 dev3a/dev3b/dev4a/dev4b 4개 브리프 + index).
-2. 구현 계획 (writing-plans) — 본 설계의 §2 공동 계약 세션 산출물과 §3 타임라인을 실행 가능한 Task 목록으로 전개.
+1. `docs/handoff/README.md` · `dev3-ui.md` · `dev4-engine.md` 를 본 설계 기준으로 재작성. 새 구조 = `README.md` + **`dev3.md`** (세션 3A·3B 통합) + **`dev4.md`** (세션 4A·4B 통합) + `dev1-2-game-cowork.md`. 4 세션을 2 브리프에 담는 이유: Dev 당 한 파일에서 자기 몫 전부 확인 가능 · 문서 수 최소화. 각 브리프 안에서 세션별 프롬프트·DoD·파일 소유권 블록은 별도 섹션으로 분리.
+2. 공동 계약 세션 H+0~2 산출물은 Plan A Task A1·A2·A3 + Plan B Task B1·B2 초반부에 이미 명시되어 있어 별도 실행 플랜 불필요. 구현 계획(writing-plans)은 handoff 재작성에 집중.
