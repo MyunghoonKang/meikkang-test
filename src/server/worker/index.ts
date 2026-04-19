@@ -32,8 +32,11 @@ export async function runSubmission(submissionId: string): Promise<WorkerResult>
   const deps = _deps;
   const mode = resolveMode(process.env);
 
-  // Mark as running at entry
-  await deps.markRunning(submissionId);
+  // 제출 정보 로드
+  const sub = await deps.loadSubmission(submissionId);
+  if (!sub) {
+    return { status: 'FAILED_OTHER', erpRefNo: null, sunginNb: null, screenshotDir: null, errorLog: `submission ${submissionId} not found` };
+  }
 
   if (mode === 'dryrun') {
     const screenshotDir = makeScreenshotDir(submissionId);

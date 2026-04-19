@@ -182,7 +182,7 @@
     var gridView = {
       _rows: _gridRows,
       getDataSource: function() {
-        return {
+        var ds = {
           setValue: function(rowIdx, field, value) {
             if (_gridRows[rowIdx]) {
               _gridRows[rowIdx][field] = value;
@@ -195,7 +195,9 @@
           getJsonRows: function() {
             return _gridRows.slice();
           },
+          getDataSource: function() { return ds; },
         };
+        return ds;
       },
       beginUpdateRow: function(idx) { /* no-op */ },
       checkItem: function(idx, checked) {
@@ -238,9 +240,11 @@
     var cardModalGridView = {
       _rows: _cardRows,
       getDataSource: function() {
-        return {
+        var cds = {
           getJsonRows: function() { return _cardRows.slice(); },
+          getDataSource: function() { return cds; },
         };
+        return cds;
       },
     };
     cardModalEl.gridView = cardModalGridView;
