@@ -7,6 +7,7 @@ import { GameRegistry } from './games/registry';
 import { SessionManager } from './session/manager';
 import { attachIo } from './io';
 import { sessionsRouter } from './routes/sessions';
+import { submissionsRouter } from './routes/submissions';
 import { config } from './config';
 import { CredentialVault } from './vault/vault';
 import { db } from './db/client';
@@ -27,6 +28,7 @@ const io = new IOServer(httpServer, { cors: { origin: config.corsOrigin } });
 attachIo(io, { mgr, registry });
 
 const queue = new SubmissionQueue(db);
+app.use('/api', submissionsRouter(mgr, queue, io));
 const scheduler = new Scheduler({
   queue,
   runSubmission: async (id) => { console.log('[scheduler] runSubmission stub:', id); },
