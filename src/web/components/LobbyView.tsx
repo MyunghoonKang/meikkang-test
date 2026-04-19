@@ -19,6 +19,7 @@ export function LobbyView({ snap, me }: { snap: Snap; me: string }) {
     <section className="lobby">
       <h1>방 {snap.roomCode}</h1>
       <p>공유할 코드: <strong>{snap.roomCode}</strong></p>
+      <button onClick={() => navigator.clipboard.writeText(snap.roomCode)}>룸 코드 복사</button>
 
       <h2>참가자 ({snap.players.length})</h2>
       <PlayerList players={snap.players} hostId={snap.hostId} />
