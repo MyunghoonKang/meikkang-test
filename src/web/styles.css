@@ -60,3 +60,97 @@ button {
   font-family: inherit;
   cursor: pointer;
 }
+
+/* ── Layout containers ── */
+.home, .lobby, .game, .result, .cred {
+  max-width: 640px;
+  margin: 40px auto;
+  padding: 24px;
+}
+
+/* ── Form elements ── */
+input {
+  font-size: 16px;
+  padding: 8px 12px;
+  margin: 4px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  width: 100%;
+}
+
+button {
+  font-size: 16px;
+  padding: 8px 16px;
+  margin: 4px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-primary-fg);
+  font-weight: 600;
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Feedback ── */
+.error { color: var(--color-danger); margin: 8px 0; }
+
+/* ── Player list ── */
+.player-list { display: flex; flex-wrap: wrap; gap: 12px; margin: 12px 0; }
+.player-chip {
+  padding: 8px 16px;
+  background: var(--color-surface-alt);
+  border-radius: var(--radius-full);
+  font-size: 14px;
+}
+
+/* ── Status badge ── */
+.badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 600;
+}
+.badge-preparing  { background: var(--color-surface-alt); color: var(--color-text-muted); }
+.badge-playing    { background: var(--color-primary); color: var(--color-primary-fg); }
+.badge-finished   { background: var(--color-accent); color: #fff; }
+.badge-credential_input { background: var(--color-warning); color: #0f1115; }
+.badge-queued     { background: var(--color-surface-alt); color: var(--color-text-muted); }
+.badge-running    { background: var(--color-warning); color: #0f1115; }
+.badge-completed  { background: var(--color-success); color: #0f1115; }
+.badge-failed     { background: var(--color-danger); color: #fff; }
+.badge-aborted    { background: var(--color-surface-alt); color: var(--color-text-muted); }
+
+/* ── InlineSpinner ── */
+.inline-spinner { display: inline-flex; align-items: center; gap: 8px; }
+.inline-spinner__dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  animation: pulse 1s ease-in-out infinite;
+}
+.inline-spinner__label { font-size: 14px; color: var(--color-text-muted); }
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.7); }
+}
+
+/* ── Worker steps ── */
+.worker-steps { list-style: none; padding: 0; margin: 16px 0; }
+.worker-steps li {
+  padding: 8px 12px;
+  margin: 4px 0;
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+}
+.worker-steps li.active {
+  background: var(--color-surface-alt);
+  color: var(--color-primary);
+  font-weight: 600;
+}
