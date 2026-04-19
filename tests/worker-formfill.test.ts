@@ -47,14 +47,14 @@ describe('fillForm (mock)', () => {
 });
 
 describe('defaultTitle', () => {
-  it('returns coffee title in KST format', () => {
+  it('returns coffee title in KST zero-padded format', () => {
     // 2026-04-06 UTC → 2026-04-06 KST (UTC+9 so still April 6)
     const d = new Date('2026-04-06T04:00:00Z');
-    expect(defaultTitle('coffee', d)).toBe('4월 6일 음료 지출');
+    expect(defaultTitle('coffee', d)).toBe('04월 06일 음료 지출');
   });
 
-  it('returns lunch title in KST format', () => {
+  it('returns lunch title in KST zero-padded format', () => {
     const d = new Date('2026-04-06T04:00:00Z');
-    expect(defaultTitle('lunch', d)).toBe('4월 6일 중식 지출');
+    expect(defaultTitle('lunch', d)).toBe('04월 06일 중식 지출');
   });
 });
