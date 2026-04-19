@@ -8,6 +8,7 @@ import { login, LoginError } from './login';
 import { openWriteForm } from './navigate';
 import { openCardModal, selectCardRow, NoMatchError } from './cardModal';
 import { fillForm, defaultTitle } from './formFill';
+import { openApprovalAndInject } from './approval';
 import type { WorkerResult, WorkerDeps, WorkerMode } from './types';
 
 export type { WorkerResult, WorkerDeps, WorkerMode };
@@ -196,21 +197,40 @@ export async function runSubmission(submissionId: string): Promise<WorkerResult>
       return { status: 'FAILED_UNEXPECTED_UI', erpRefNo: null, sunginNb, screenshotDir, errorLog };
     }
 
-    // Subsequent steps (B10+) — not implemented yet
-    console.log(`[worker] runSubmission(${submissionId}) mode=${mode} — formFill OK (sunginNb=${sunginNb}), remaining steps not implemented yet`);
+    // Step: approval
+    await deps.reportStep(sub.sessionId, 'approval');
+
+    const submitFinal = mode === 'live' && !!process.env['ERP_CONFIRM_SUBMIT'];
+
+    let submittedAt: Date | null;
+    try {
+      const approvalResult = await openApprovalAndInject(session.context, page, {
+        attendeeNames: sub.attendeeNames,
+        mode,
+        submitFinal,
+      });
+      submittedAt = approvalResult.submittedAt;
+    } catch (e) {
+      await snap(page, screenshotDir, 'approval-fail');
+      const errorLog = String(e);
+      await deps.fail(submissionId, { status: 'FAILED_UNEXPECTED_UI', errorLog, screenshotDir });
+      return { status: 'FAILED_UNEXPECTED_UI', erpRefNo: null, sunginNb, screenshotDir, errorLog };
+    }
+
+    const erpRefNo = submittedAt ? `ERP-${submittedAt.getTime()}` : null;
+
+    await snap(page, screenshotDir, 'approval-done');
     const result = {
-      status: 'FAILED_OTHER' as const,
-      erpRefNo: null,
+      erpRefNo,
       sunginNb,
       screenshotDir,
-      errorLog: 'runSubmission: steps after formFill not implemented yet',
     };
-    await deps.fail(submissionId, {
-      status: result.status,
-      errorLog: result.errorLog,
-      screenshotDir,
-    });
-    return result;
+    await deps.complete(submissionId, result);
+    return {
+      status: 'COMPLETED',
+      errorLog: null,
+      ...result,
+    };
   } finally {
     await session.close();
   }
