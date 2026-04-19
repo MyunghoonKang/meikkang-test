@@ -10,6 +10,8 @@ import { sessionsRouter } from './routes/sessions';
 import { config } from './config';
 import { CredentialVault } from './vault/vault';
 import { db } from './db/client';
+import { SubmissionQueue } from './submissions/queue';
+import { Scheduler } from './submissions/scheduler';
 
 const registry = new GameRegistry({ dir: config.gamesDir, watch: true });
 await registry.scan();
@@ -23,5 +25,13 @@ app.use('/api/sessions', sessionsRouter(mgr));
 const httpServer = createServer(app);
 const io = new IOServer(httpServer, { cors: { origin: config.corsOrigin } });
 attachIo(io, { mgr, registry });
+
+const queue = new SubmissionQueue(db);
+const scheduler = new Scheduler({
+  queue,
+  runSubmission: async (id) => { console.log('[scheduler] runSubmission stub:', id); },
+  logger: console,
+});
+scheduler.start();
 
 httpServer.listen(config.port, () => console.log(`[server] listening on :${config.port}`));
