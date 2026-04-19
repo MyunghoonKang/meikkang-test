@@ -25,19 +25,24 @@ export async function openCardModal(page: Page): Promise<void> {
  */
 export async function selectCardRow(page: Page, criteria: MatchCriteria): Promise<string> {
   // Poll until gridView rows are available
-  const jsonRows = await page.waitForFunction(
+  await page.waitForFunction(
     () => {
       const el = document.querySelector('[data-orbit-id="cardDataGridTab1"]') as (Element & {
         gridView?: { getDataSource(): { getJsonRows(): unknown[] } };
       }) | null;
       const rows = el?.gridView?.getDataSource().getJsonRows();
-      if (rows && rows.length > 0) return rows;
-      return null;
+      return rows != null && rows.length > 0;
     },
     { polling: 500, timeout: 30_000 },
   );
 
-  const rawRows = await jsonRows.jsonValue() as CardRow[];
+  // JSON.stringify round-trip strips prototype chain so jsonValue() is safe
+  const rawRows = await page.evaluate(() => {
+    const el = document.querySelector('[data-orbit-id="cardDataGridTab1"]') as (Element & {
+      gridView?: { getDataSource(): { getJsonRows(): unknown[] } };
+    }) | null;
+    return JSON.parse(JSON.stringify(el?.gridView?.getDataSource().getJsonRows() ?? []));
+  }) as CardRow[];
 
   const matched = matchCardRow(rawRows, criteria);
   if (!matched) {

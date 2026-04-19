@@ -27,7 +27,7 @@ export interface MatchCriteria {
  *    and sunginNb not in excludeSunginNbs
  * 2. Compute delta = KST timestamp of row − sessionStartedAt (ms)
  * 3. Keep rows where |delta| <= toleranceMinutes * 60_000
- * 4. Sort by delta ascending (closest-in-time first, preferring rows after session start)
+ * 4. Sort by |delta| ascending (closest-in-time first)
  * 5. Return first, or null if none
  */
 export function matchCardRow(rows: CardRow[], c: MatchCriteria): CardRow | null {

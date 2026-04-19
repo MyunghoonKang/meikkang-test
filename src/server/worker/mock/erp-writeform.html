@@ -246,6 +246,9 @@
         };
         return cds;
       },
+      checkItem: function(idx, checked) {
+        if (_cardRows[idx]) _cardRows[idx]._checked = checked;
+      },
     };
     cardModalEl.gridView = cardModalGridView;
 
