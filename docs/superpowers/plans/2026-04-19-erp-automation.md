@@ -14,6 +14,7 @@
 
 - 설계: `docs/superpowers/specs/2026-04-19-erp-proposal-game-automation-design.md` (§4.4 워커 · §4.5 DB · §6.4 에러 · §6.6 데모 리스크)
 - ERP 필드: `docs/superpowers/specs/2026-04-19-q6-erp-field-findings.md` (전체 필드·API·매칭 전략)
+- **UI 와이어프레임 (Claude Design):** `docs/design/project/Wireframes.html` — Task 3 (CredentialForm)·Task 11 (ResultView의 QUEUED/RUNNING/COMPLETED/FAILED 단계) 시각 스펙. 화면 5~7 참조.
 - **사전 조건:** Plan A가 Task 1~7까지 완료되어 있어 Express + Socket.io 서버, SQLite/Drizzle, 세션·게임 런너, React 프론트가 구동 가능한 상태여야 한다. 패자가 결정된 직후의 훅(`runner.ts`의 outcome broadcast 시점)에 Plan B의 `SubmissionQueue.enqueue()`를 호출해 연결한다.
 - **ERP 안전 규칙 (사용자 feedback 메모리):** 실 ERP 쓰기 동작(상신/저장)은 사용자 확인 없이 절대 수행 금지. 본 플랜의 `live` 모드 최종 단계는 항상 `--confirm` 플래그 또는 UI 확인 버튼을 요구한다.
 

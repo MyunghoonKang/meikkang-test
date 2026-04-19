@@ -14,6 +14,7 @@
 
 - `docs/superpowers/specs/2026-04-19-erp-proposal-game-automation-design.md`
 - 특히 §4.3 (게임 플러그인 SDK), §4.5 (DB 스키마), §5 (데이터 흐름)
+- **UI 와이어프레임 (Claude Design):** `docs/design/project/Wireframes.html` — 7 화면 × 2 변주, 손글씨 메모로 디자인 의도 명시. Task 10~13·15 작업 시 시각 스펙으로 활용.
 
 ## 파일 구조
 

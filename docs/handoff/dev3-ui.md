@@ -10,6 +10,7 @@
 - `docs/superpowers/plans/2026-04-19-game-platform.md` §Task 10~15 (특히 Task 13의 RoomPage/ResultView/CredentialForm)
 - `docs/superpowers/plans/2026-04-19-erp-automation.md` §Task 3, §Task 11
 - `docs/superpowers/specs/2026-04-19-erp-proposal-game-automation-design.md` §4.1 (페이지 목록)
+- **UI 와이어프레임 (Claude Design):** `docs/design/project/Wireframes.html` — 본인 시각 스펙. 7 화면 × 2 변주, 디자인 의도 손글씨 메모. 변주 선택은 본인 재량(작가 추천: HomePage B, ResultView A→B 순차 전환)
 
 ## 시작 전 의존성 (Dev 4 가 먼저 해야 할 것)
 

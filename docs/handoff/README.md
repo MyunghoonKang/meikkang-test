@@ -16,6 +16,7 @@
 - Plan A (게임 플랫폼): `docs/superpowers/plans/2026-04-19-game-platform.md`
 - Plan B (ERP 자동화): `docs/superpowers/plans/2026-04-19-erp-automation.md`
 - Q6 ERP 조사 결과 (Plan B 입력): `docs/superpowers/specs/2026-04-19-q6-erp-field-findings.md`
+- **UI 와이어프레임 (Claude Design):** `docs/design/project/Wireframes.html` (7 화면 × 2 변주, 손글씨 메모) · 원본 README `docs/design/README.md` · 작업 대화 `docs/design/chats/chat1.md`
 
 ## 의존성 DAG
 
