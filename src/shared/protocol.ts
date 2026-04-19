@@ -34,7 +34,7 @@ export const ALLOWED_TRANSITIONS: Record<RoomStatus, readonly RoomStatus[]> = {
   QUEUED:           ['RUNNING', 'ABORTED'],
   RUNNING:          ['COMPLETED', 'FAILED', 'ABORTED'],
   COMPLETED:        [],
-  FAILED:           ['QUEUED', 'ABORTED'], // 재시도 허용
+  FAILED:           ['ABORTED'], // terminal; 재시도 UI 필요 시 4A 가 별도 PR 로 QUEUED 추가
   ABORTED:          [],
 } as const;
 

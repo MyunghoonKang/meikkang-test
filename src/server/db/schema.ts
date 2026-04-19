@@ -22,9 +22,9 @@ export const sessions = sqliteTable('sessions', {
 export const submissions = sqliteTable('submissions', {
   id: text('id').primaryKey(),
   sessionId: text('session_id').notNull().references(() => sessions.id),
-  loserId: text('loser_id').notNull(),
+  loserUserId: text('loser_user_id').notNull(),
   status: text('status', {
-    enum: ['QUEUED', 'RUNNING', 'COMPLETED', 'FAILED'],
+    enum: ['QUEUED', 'RUNNING', 'COMPLETED', 'FAILED_AUTH', 'FAILED_NO_TXN', 'FAILED_UNEXPECTED_UI', 'FAILED_OTHER', 'ABORTED'],
   }).notNull(),
   mode: text('mode', { enum: ['live', 'mock', 'dryrun'] }).notNull().default('mock'),
   scheduledAt: integer('scheduled_at', { mode: 'timestamp_ms' }).notNull(),

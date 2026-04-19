@@ -15,7 +15,7 @@ CREATE UNIQUE INDEX `sessions_room_code_unique` ON `sessions` (`room_code`);
 CREATE TABLE `submissions` (
 	`id` text PRIMARY KEY NOT NULL,
 	`session_id` text NOT NULL,
-	`loser_id` text NOT NULL,
+	`loser_user_id` text NOT NULL,
 	`status` text NOT NULL,
 	`mode` text DEFAULT 'mock' NOT NULL,
 	`scheduled_at` integer NOT NULL,
