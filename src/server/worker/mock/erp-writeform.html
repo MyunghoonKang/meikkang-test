@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>지출결의서 작성 (Mock)</title>
+  <style>
+    body { font-family: sans-serif; margin: 0; background: #f0f2f5; }
+    header { background: #1a73e8; color: white; padding: 12px 20px; font-size: 18px; font-weight: bold; }
+    .container { max-width: 960px; margin: 20px auto; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.1); padding: 24px; }
+    h2 { margin-top: 0; color: #333; }
+    table.form-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+    table.form-table th, table.form-table td { border: 1px solid #ddd; padding: 8px 12px; font-size: 14px; }
+    table.form-table th { background: #f5f7fa; text-align: left; width: 160px; }
+    input[type="text"] { width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid #ccc; border-radius: 3px; font-size: 14px; }
+    .toolbar { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+    button { padding: 8px 16px; border: 1px solid #ccc; border-radius: 4px; background: #fff; cursor: pointer; font-size: 14px; }
+    button:hover { background: #e8f0fe; border-color: #1a73e8; }
+    button.primary { background: #1a73e8; color: white; border-color: #1a73e8; }
+    button.primary:hover { background: #1558b0; }
+    .grid-container { border: 1px solid #ddd; border-radius: 4px; overflow: hidden; margin-bottom: 20px; }
+    .grid-header { background: #f5f7fa; display: grid; grid-template-columns: 50px 1fr 1fr 1fr 1fr 1fr 1fr; border-bottom: 2px solid #ccc; }
+    .grid-header div, .grid-row div { padding: 8px 10px; font-size: 13px; border-right: 1px solid #ddd; }
+    .grid-header div { font-weight: bold; color: #555; }
+    .grid-row { display: grid; grid-template-columns: 50px 1fr 1fr 1fr 1fr 1fr 1fr; border-bottom: 1px solid #eee; }
+    .grid-row:last-child { border-bottom: none; }
+    .grid-row div { font-size: 13px; color: #333; }
+    /* Budget modal */
+    .obt-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,.4); z-index: 1000; }
+    .obt-modal.active { display: flex; justify-content: center; align-items: center; }
+    .modal-box { background: white; border-radius: 8px; padding: 28px; width: 420px; box-shadow: 0 4px 20px rgba(0,0,0,.2); }
+    .modal-box h3 { margin-top: 0; }
+    .modal-field { margin-bottom: 14px; }
+    .modal-field label { display: block; font-size: 13px; color: #666; margin-bottom: 4px; }
+    .modal-field input { width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid #ccc; border-radius: 3px; font-size: 14px; }
+    .validate-result { margin-bottom: 14px; font-size: 14px; color: #777; }
+    .validate-result.ok { color: #2e7d32; font-weight: bold; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+    /* Card modal */
+    #cardModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,.4); z-index: 1000; }
+    #cardModal.active { display: flex; justify-content: center; align-items: center; }
+    #cardModal .modal-box { width: 680px; }
+    #cardModal table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 16px; }
+    #cardModal table th, #cardModal table td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; }
+    #cardModal table th { background: #f5f7fa; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <header>ERP — 지출결의서 작성 (Mock)</header>
+
+  <div class="container">
+    <h2>지출결의서</h2>
+
+    <!-- Main form table -->
+    <table class="form-table" id="mainFormTable">
+      <tbody>
+        <tr>
+          <th scope="row">제목</th>
+          <td><input type="text" id="docTitle" placeholder="지출결의서 제목을 입력하세요" /></td>
+        </tr>
+        <tr>
+          <th scope="row">작성자</th>
+          <td><input type="text" id="docAuthor" value="강명훈" /></td>
+        </tr>
+        <tr>
+          <th scope="row">작성일</th>
+          <td><input type="text" id="docDate" value="" /></td>
+        </tr>
+        <tr>
+          <th scope="row">예산</th>
+          <td>
+            <input type="text" id="budgetDisplay" placeholder="예산 코드 선택" readonly />
+            <button id="budgetLookupBtn" type="button" style="margin-top:6px;">예산 조회</button>
+            <span id="validateResult" class="validate-result"></span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <button id="cardDataBtn" type="button">[카드사용내역]</button>
+      <button id="approvalBtn" type="button" class="primary">[결재상신]</button>
+    </div>
+
+    <!-- Main grid (APB1020WriteGridGrid) -->
+    <div class="grid-container">
+      <div class="grid-header">
+        <div>#</div>
+        <div>카드사</div>
+        <div>카드번호</div>
+        <div>사용일시</div>
+        <div>가맹점</div>
+        <div>공급가액</div>
+        <div>합계금액</div>
+      </div>
+      <div id="APB1020WriteGridGrid" data-orbit-id="APB1020WriteGridGrid">
+        <!-- Rows injected by gridView JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Budget modal -->
+  <div class="obt-modal" id="budgetModal">
+    <div class="modal-box">
+      <h3>예산 조회</h3>
+      <div class="modal-field">
+        <label>프로젝트 코드</label>
+        <input type="text" data-field="projectCode" placeholder="프로젝트 코드" />
+      </div>
+      <div class="modal-field">
+        <label>예산 계정 코드</label>
+        <input type="text" data-field="budgetAcctCd" placeholder="예산 계정 코드" />
+      </div>
+      <div id="budgetValidateResult" class="validate-result"></div>
+      <div class="modal-actions">
+        <button id="budgetModalConfirm" type="button" class="primary">확인</button>
+        <button id="budgetModalCancel" type="button">취소</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Card data modal -->
+  <div id="cardModal">
+    <div class="modal-box" data-orbit-id="cardDataGridTab1">
+      <h3>카드사용내역</h3>
+      <table id="cardTable">
+        <thead>
+          <tr>
+            <th>카드사</th>
+            <th>카드번호(끝4자리)</th>
+            <th>사용일시</th>
+            <th>가맹점</th>
+            <th>공급가액</th>
+            <th>부가세</th>
+            <th>합계금액</th>
+            <th>승인번호</th>
+          </tr>
+        </thead>
+        <tbody id="cardTableBody"></tbody>
+      </table>
+      <div class="modal-actions">
+        <button id="cardModalConfirm" type="button" class="primary">확인</button>
+        <button id="cardModalCancel" type="button">취소</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ---- Init doc date ----
+    document.getElementById('docDate').value = new Date().toISOString().slice(0, 10);
+
+    // ---- MOCK_CARD_ROWS (injected by seed.ts or hardcoded for standalone use) ----
+    var MOCK_CARD_ROWS = window.__MOCK_CARD_ROWS__ || [
+      {
+        bankCd: '11', bankNm: '롯데카드',
+        cardCd: '5105545000378130',
+        cardNm: '롯데카드_강명훈(8130)',
+        issDt: '20260406', issTime: '13:29:26',
+        formatedIssDtTime: '2026-04-06 13:29:26',
+        chainName: '스타벅스코리아', chainBusiness: '커피전문점',
+        supAm: 4819, vatAm: 481, sunginAm: 5300,
+        sunginNb: '68763054', payDt: '20260515',
+      },
+      {
+        bankCd: '11', bankNm: '롯데카드',
+        cardCd: '5105545000378130',
+        cardNm: '롯데카드_강명훈(8130)',
+        issDt: '20260406', issTime: '12:00:00',
+        formatedIssDtTime: '2026-04-06 12:00:00',
+        chainName: '한솥도시락', chainBusiness: '일반음식점',
+        supAm: 6364, vatAm: 636, sunginAm: 7000,
+        sunginNb: '68763055', payDt: '20260515',
+      },
+    ];
+
+    // ---- gridView state for APB1020WriteGridGrid ----
+    var _gridRows = MOCK_CARD_ROWS.map(function(r, i) {
+      return Object.assign({ _idx: i, _checked: false }, r);
+    });
+
+    var gridView = {
+      _rows: _gridRows,
+      getDataSource: function() {
+        return {
+          setValue: function(rowIdx, field, value) {
+            if (_gridRows[rowIdx]) {
+              _gridRows[rowIdx][field] = value;
+              _renderGrid();
+            }
+          },
+          getValue: function(rowIdx, field) {
+            return _gridRows[rowIdx] ? _gridRows[rowIdx][field] : undefined;
+          },
+          getJsonRows: function() {
+            return _gridRows.slice();
+          },
+        };
+      },
+      beginUpdateRow: function(idx) { /* no-op */ },
+      checkItem: function(idx, checked) {
+        if (_gridRows[idx]) {
+          _gridRows[idx]._checked = checked;
+        }
+      },
+    };
+
+    // Expose on the DOM element and on window.Grids
+    var gridEl = document.getElementById('APB1020WriteGridGrid');
+    gridEl.gridView = gridView;
+
+    window.Grids = window.Grids || {};
+    window.Grids['APB1020WriteGridGrid'] = gridView;
+
+    function _renderGrid() {
+      gridEl.innerHTML = '';
+      _gridRows.forEach(function(row, i) {
+        var div = document.createElement('div');
+        div.className = 'grid-row';
+        div.innerHTML = [
+          '<div>' + (i + 1) + '</div>',
+          '<div>' + row.bankNm + '</div>',
+          '<div>...' + String(row.cardCd).slice(-4) + '</div>',
+          '<div>' + (row.formatedIssDtTime || '') + '</div>',
+          '<div>' + row.chainName + '</div>',
+          '<div>' + (row.supAm || '').toLocaleString() + '</div>',
+          '<div>' + (row.sunginAm || '').toLocaleString() + '</div>',
+        ].join('');
+        gridEl.appendChild(div);
+      });
+    }
+    _renderGrid();
+
+    // ---- Card modal gridView (cardDataGridTab1) ----
+    var cardModalEl = document.querySelector('[data-orbit-id="cardDataGridTab1"]');
+    var _cardRows = MOCK_CARD_ROWS.slice();
+
+    var cardModalGridView = {
+      _rows: _cardRows,
+      getDataSource: function() {
+        return {
+          getJsonRows: function() { return _cardRows.slice(); },
+        };
+      },
+    };
+    cardModalEl.gridView = cardModalGridView;
+
+    // Render card table
+    function _renderCardTable() {
+      var tbody = document.getElementById('cardTableBody');
+      tbody.innerHTML = '';
+      _cardRows.forEach(function(row) {
+        var tr = document.createElement('tr');
+        tr.innerHTML = [
+          '<td>' + row.bankNm + '</td>',
+          '<td>...' + String(row.cardCd).slice(-4) + '</td>',
+          '<td>' + row.formatedIssDtTime + '</td>',
+          '<td>' + row.chainName + '</td>',
+          '<td>' + row.supAm.toLocaleString() + '</td>',
+          '<td>' + row.vatAm.toLocaleString() + '</td>',
+          '<td>' + row.sunginAm.toLocaleString() + '</td>',
+          '<td>' + row.sunginNb + '</td>',
+        ].join('');
+        tbody.appendChild(tr);
+      });
+    }
+
+    // ---- Card modal open/close ----
+    document.getElementById('cardDataBtn').addEventListener('click', function() {
+      _renderCardTable();
+      document.getElementById('cardModal').classList.add('active');
+    });
+
+    document.getElementById('cardModalConfirm').addEventListener('click', function() {
+      document.getElementById('cardModal').classList.remove('active');
+    });
+
+    document.getElementById('cardModalCancel').addEventListener('click', function() {
+      document.getElementById('cardModal').classList.remove('active');
+    });
+
+    // ---- Budget modal open/close ----
+    document.getElementById('budgetLookupBtn').addEventListener('click', function() {
+      document.getElementById('budgetModal').classList.add('active');
+    });
+
+    document.getElementById('budgetModalCancel').addEventListener('click', function() {
+      document.getElementById('budgetModal').classList.remove('active');
+    });
+
+    document.getElementById('budgetModalConfirm').addEventListener('click', function() {
+      var projectCode = document.querySelector('[data-field="projectCode"]').value;
+      var budgetAcctCd = document.querySelector('[data-field="budgetAcctCd"]').value;
+      // Set validateResult to '적합'
+      var resultEl = document.getElementById('budgetValidateResult');
+      resultEl.textContent = '적합';
+      resultEl.className = 'validate-result ok';
+      document.getElementById('validateResult').textContent = '적합 ✓';
+      document.getElementById('validateResult').className = 'validate-result ok';
+      if (projectCode) {
+        document.getElementById('budgetDisplay').value = projectCode + (budgetAcctCd ? ' / ' + budgetAcctCd : '');
+      }
+      document.getElementById('budgetModal').classList.remove('active');
+    });
+
+    // ---- Approval (결재상신) ----
+    document.getElementById('approvalBtn').addEventListener('click', function() {
+      window.open('erp-approval.html', '_blank', 'width=860,height=640');
+    });
+  </script>
+</body>
+</html>
