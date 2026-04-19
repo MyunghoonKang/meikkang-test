@@ -14,6 +14,7 @@
 3. `docs/superpowers/specs/2026-04-19-q6-erp-field-findings.md` — 실 ERP 탐색 결과 (Plan B 입력)
 4. `docs/superpowers/specs/2026-04-19-erp-proposal-game-automation-design.md` — 통합 설계
 5. `docs/handoff/README.md` — 팀 DAG·타임라인·ERP 안전 규칙
+6. `docs/design/project/Wireframes.html` — UI 와이어프레임 (Dev 3 가 따라 만드는 시각 스펙). 백엔드 입장에서는 ResultView가 9 RoomStatus를 어떻게 표시하는지 확인용
 
 ## 실행 방식 (권장)
 

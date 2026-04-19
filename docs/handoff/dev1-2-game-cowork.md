@@ -6,7 +6,7 @@
 
 식후 4명이 본인 노트북에서 각자 iframe 게임을 플레이한다. 게임은 **단일 HTML 파일** 한 장이며, 본인 결과값(숫자 하나)만 서버로 보낸다. 서버가 전체 값을 비교해 패자 1명을 뽑는다. 패자가 ERP 품의서를 올리게 된다.
 
-**너의 목표:** 재미있는 단일 HTML 게임 3~N개를 만들고, 최종적으로 플랫폼의 `POST /api/games` 에 업로드한다.
+**너의 목표:** 재미있는 단일 HTML 게임 3~N개를 만들고, 운영자(Dev 4)에게 전달해 admin 도구로 사전 등록되게 한다. 사용자 UI에는 업로드 화면이 없으므로 등록은 운영자만 한다 (`POST /api/games` 또는 `cp games/`).
 
 ## 1. 게임 계약 (반드시 준수)
 
@@ -149,6 +149,7 @@ cp number-guess.html games/
 ## 8. 질문·블로커
 
 - 계약 확인은 이 문서 §1 또는 `docs/superpowers/specs/2026-04-19-erp-proposal-game-automation-design.md` §4.3 를 본다.
+- 게임이 호스트 화면에 어떻게 끼워지는지 시각 확인 → `docs/design/project/Wireframes.html` §3 GameView (탭 3) 참고. iframe 영역 크기와 HUD 배치 결정에 도움.
 - 업로드 API 422 에러 → Dev 4 에게 `errors` 필드를 들고 공유.
 - iframe sandbox 때문에 막히면 → Dev 4 에게 즉시 알림. SDK 한계일 수 있음.
 - 심사까지 여유 있으면 Plan B Task 6 의 `src/server/worker/mock/*.html` 정리도 게임 제작팀이 지원 가능 (선택 과제).

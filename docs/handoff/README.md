@@ -21,15 +21,15 @@
 ## 의존성 DAG
 
 ```
-┌─ Dev 4: Task A1~A4 (scaffold, protocol, DB, roomCode) ─┐
-│                                                         │
-│     ├─→ Dev 3: Task A10~A13, A15 + B3, B11프론트
-│     │     (초기엔 mock 응답으로 선행 가능)
+┌─ Dev 4: Task A1~A4 (scaffold, protocol+RoomStatus, DB, roomCode) ─┐
+│                                                                     │
+│     ├─→ Dev 3: Task A10~A13, A15 + B3·B11 프론트
+│     │     (초기엔 mock socket 으로 선행 가능)
 │     │
-│     ├─→ Dev 4: Task A5~A9 (SessionManager, Registry, Runner, IO)
+│     ├─→ Dev 4: Task A5~A9 (SessionManager+상태머신, Registry, Runner, IO+broadcastRoomState)
 │     │     ↓
 │     └─→ Dev 1, 2: Task A14 (게임 3종~N종)
-│           ↑ 업로드 API·SDK 계약 확정 필요
+│           ↑ 게임 등록 API(admin) + SDK 계약 확정 필요
 │
 └─→ Dev 4: Plan B Task 1~14 (ERP 자동화) — 주로 Plan A 후반부와 병렬
 ```
@@ -51,7 +51,7 @@
 
 ## 저장소 · 브랜치 규칙
 
-- 기본 브랜치: `main`. 현재 빈 레포(스펙·플랜만 커밋됨).
+- 기본 브랜치: `main`. 현재 코드는 없고 스펙·플랜·핸드오프·UI 와이어프레임이 커밋됨. Dev 4 가 Plan A Task 1 부터 스캐폴딩 시작.
 - 각자 브랜치: `feat/dev4-scaffold`, `feat/dev3-ui-home`, `feat/dev1-game-<name>` 처럼 짧고 범위 명확하게.
 - 커밋 스타일: 기존 `feat(…)` · `docs(…)` · `chore(…)` 유지.
 - **머지 원칙:** 24h 해커톤이므로 승인 지연 금지 — **녹색 테스트 + 빠른 eyes-on → 바로 머지**. 충돌 우려 영역(shared/protocol, Socket.io)은 Dev 4 선점 후 열어둔다.
@@ -61,7 +61,7 @@
 | 시각 | 체크 |
 |------|------|
 | H+4 | 공용 토대 OK? 각자 언블록됐는가? |
-| H+12 | 플랫폼 부팅 & 게임 1개 업로드 성공 여부. Plan B 착수 가능? |
+| H+12 | 플랫폼 부팅 & 게임 1개 admin 등록 성공 여부 (LobbyView GameSelector 노출 확인). Plan B 착수 가능? |
 | H+20 | 통합 리허설 · 라이브 리허설 준비 · 데모 스크립트 최종 |
 
 ## 환경변수 (Dev 4 가 `.env.example` 에 반영. 각자 로컬에 `.env` 생성)
