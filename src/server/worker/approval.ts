@@ -24,15 +24,15 @@ export async function openApprovalAndInject(
 ): Promise<ApprovalResult> {
   const { attendeeNames, mode, submitFinal } = input;
 
-  // 안전 방어: mock 모드에서 submitFinal=true는 에러
-  if (mode === 'mock' && submitFinal === true) {
+  // 안전 방어: mock/dryrun 모드에서 submitFinal=true는 에러
+  if ((mode === 'mock' || mode === 'dryrun') && submitFinal === true) {
     throw new Error(
-      '[approval] mock 모드에서 submitFinal=true는 허용되지 않습니다. ERP_CONFIRM_SUBMIT 없이 상신 금지.',
+      `[approval] ${mode} 모드에서 submitFinal=true는 허용되지 않습니다. ERP_CONFIRM_SUBMIT 없이 상신 금지.`,
     );
   }
 
-  // 1. 새 탭(팝업) 이벤트 대기 등록
-  const popupPromise = context.waitForEvent('page');
+  // 1. 새 탭(팝업) 이벤트 대기 등록 (15s 타임아웃 명시)
+  const popupPromise = context.waitForEvent('page', { timeout: 15_000 });
 
   // 2. [결재상신] 버튼 클릭 (텍스트 우선, 폴백 #approvalBtn)
   const btn = originPage

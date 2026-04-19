@@ -210,6 +210,8 @@ export async function runSubmission(submissionId: string): Promise<WorkerResult>
         submitFinal,
       });
       submittedAt = approvalResult.submittedAt;
+      // 관측-only 세션: 팝업 탭 닫기 (session.close()가 context 전체를 닫더라도 명시적으로)
+      if (!submitFinal) await approvalResult.popup.close();
     } catch (e) {
       await snap(page, screenshotDir, 'approval-fail');
       const errorLog = String(e);
