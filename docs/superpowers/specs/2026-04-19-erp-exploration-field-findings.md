@@ -1,4 +1,4 @@
-# Q6 조사 결과 · 더존 아마란스 ERP 품의서 필드 & 자동화 플로우
+# ERP Exploration 조사 결과 · 더존 아마란스 ERP 품의서 필드 & 자동화 플로우
 
 - **작성일:** 2026-04-19
 - **조사 방법:** Playwright MCP로 `erp.meissa.ai` 직접 탐색

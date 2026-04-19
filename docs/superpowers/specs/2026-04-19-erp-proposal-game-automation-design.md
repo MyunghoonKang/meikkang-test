@@ -145,7 +145,7 @@ credentials    (userId, encryptedBlob, iv, updatedAt)
 
 ### 관측 포인트
 - **iframe 타임아웃 (60초)** — 게임 먹통 방지
-- **카드내역 매칭** — 세션 생성 시 `startedAt` + `approxAmount`를 기록 → 다음 날 가장 근접한 카드 행 선택 (정확한 매칭 규칙은 Q6 확정 후 재논의)
+- **카드내역 매칭** — 세션 생성 시 `startedAt` + `approxAmount`를 기록 → 다음 날 가장 근접한 카드 행 선택 (정확한 매칭 규칙은 ERP Exploration 확정 후 재논의)
 - **멱등성** — `status` 전이(QUEUED → RUNNING → COMPLETED/FAILED)로 중복 상신 방지
 
 ## 6. 에러 처리 & 복원력
@@ -202,7 +202,7 @@ credentials    (userId, encryptedBlob, iv, updatedAt)
 | H3-8 | 게임 플러그인 로더 + iframe 샌드박스 + postMessage, 샘플 게임 1개 (숫자 맞추기) |
 | H6-12 (병렬) | Playwright로 아마란스 로그인 + 카드내역 조회 |
 | H12-16 (병렬) | 샘플 게임 2개 추가 (운 1 + 실력 1) + 결과/패자 UI 연출 |
-| H12-18 | 품의서 폼 자동화 (Q6 확정 후 시작) + CredentialVault + 큐/스케줄러 |
+| H12-18 | 품의서 폼 자동화 (ERP Exploration 확정 후 시작) + CredentialVault + 큐/스케줄러 |
 | H18-22 | 통합 + end-to-end 리허설. 실제 카드내역으로 상신 테스트 |
 | H22-24 | 데모 시나리오 스크립트 + 폴리싱 + 플랜 B 확인 |
 
@@ -231,6 +231,6 @@ credentials    (userId, encryptedBlob, iv, updatedAt)
 
 ## 10. 백로그 / 확정 전 항목
 
-- **Q6 · 아마란스 품의서 필드 세부** — 사용자가 chrome-dev-tool로 직접 시연·설명 예정. 필수 필드, 사용목적/적요 템플릿, 참석자 명단 형식, 계정과목, 영수증 첨부, 결재라인 구조 확정 후 `fillProposalForm` 스펙 작성
-- **카드내역 매칭 규칙** — Q6 확정 시 동시 확정 (금액 전액 매칭 / 시간대 허용 오차 / 동일 가맹점 중복 처리)
-- **영수증 처리** — Q6 확정 시 스코프 결정 (앱에서 사진 업로드 받을지, PoC에서는 생략할지)
+- **ERP Exploration · 아마란스 품의서 필드 세부** — 사용자가 chrome-dev-tool로 직접 시연·설명 예정. 필수 필드, 사용목적/적요 템플릿, 참석자 명단 형식, 계정과목, 영수증 첨부, 결재라인 구조 확정 후 `fillProposalForm` 스펙 작성
+- **카드내역 매칭 규칙** — ERP Exploration 확정 시 동시 확정 (금액 전액 매칭 / 시간대 허용 오차 / 동일 가맹점 중복 처리)
+- **영수증 처리** — ERP Exploration 확정 시 스코프 결정 (앱에서 사진 업로드 받을지, PoC에서는 생략할지)

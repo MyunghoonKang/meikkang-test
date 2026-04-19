@@ -44,3 +44,11 @@
   미해결: 4A 의 `/run-now` 실제 runSubmission 호출 연결. scheduler 가 2026-04-20 09:00 KST 에 자동 실행하므로 데모 때 해당 시각 대기 or run-now 스텁 교체 필요.
 
   시뮬 검증 단계 (LM66 방): HomePage → LobbyView (호스트+게스트 2인) → GameView (iframe 플레이) → ResultView FINISHED (명훈 7점, 지우 13점 패자) → CredentialForm → QUEUED "다음 영업일 09:00 KST" 까지 완주. RUNNING/COMPLETED 는 run-now 미구현으로 미검증.
+
+[integrator] 2026-04-20 — 재해커톤 준비를 위해 docs 외 전부 리셋.
+  - src/ tests/ games/ drizzle/ 및 package*·tsconfig*·*config.ts·index.html·.env.example 삭제.
+  - node_modules/ · .playwright-mcp/ · data/ · .env 등 untracked 도 제거.
+  - origin 에서 feat/ui-polish · feat/b-worker-scaffold 브랜치 삭제 → main 1개만 유지.
+  - 유지: docs/ · requirements.md · .git/ · CLAUDE.md · .claude/ · .superpowers/.
+  - 복구 시 `git checkout 352b996 -- <path>` 또는 해당 머지 커밋에서 cherry-pick.
+  - Plan A/B 의 Lessons 섹션과 spec §10 이 재해커톤의 추가 DoD 체크리스트. 다음 run 에서는 이를 공동 계약 세션에 흡수.
