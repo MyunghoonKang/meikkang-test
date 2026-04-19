@@ -14,3 +14,8 @@ build/
 
 # Q6 ERP 탐색 시 수집한 스크린샷 — 자료가치는 보존하되 git 대상 제외
 docs/q6-screenshots/
+
+data/
+dist/
+*.db
+node_modules/
