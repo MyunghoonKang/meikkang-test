@@ -225,9 +225,9 @@ B14 는 4B 세션의 마지막 Task 이지만, 실행 맥락이 mock Playwright 
 
 ### 사후 정리
 
-- [ ] **관측-only 세션 (로그인만 하고 상신 스킵한 경우) 은 마지막에 Playwright 탭을 수동 close 로 롤백.** ERP Exploration 세션에서 쓴 방식과 동일 — 자동 logout 이 아니라 브라우저 탭 자체를 닫아 세션 쿠키도 폐기.
+- [ ] **관측-only 세션 (로그인만 하고 상신 스킵한 경우) 은 마지막에 Playwright 탭을 수동 close 로 롤백.** 자동 logout 에 의존하지 않고 브라우저 탭 자체를 닫아 세션 쿠키까지 폐기한다.
 - [ ] 상신 성공한 경우 ERP 내 품의서 목록에서 `erpRefNo` 매칭 확인 후 데모용 스크린샷 1 장.
-- [ ] `.env` 의 `ERP_CONFIRM_SUBMIT=1` 을 데모 종료 후 즉시 주석 처리 / 삭제. 다음 커밋 전 git status 로 유출 여부 체크.
+- [ ] `.env` 의 `ERP_CONFIRM_SUBMIT=1` 을 데모 종료 후 즉시 주석 처리 / 삭제. `.env` 가 `.gitignore` 에 포함돼 있는지 `git check-ignore -v .env` 로 검증 (`.gitignore:<line>:.env` 형태가 나와야 함). 추가로 `grep -R "ERP_CONFIRM_SUBMIT" .` 로 다른 config 파일에 플래그가 실수로 하드코딩되지 않았는지 점검.
 
 ### 실패 시
 
