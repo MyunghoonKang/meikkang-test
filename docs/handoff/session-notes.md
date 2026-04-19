@@ -21,3 +21,10 @@
 ## 로그
 
 <!-- 새 항목은 이 아래에 append -->
+
+[integrator] 2026-04-20 — main 통합 완료 (c401055).
+  - feat/b-worker-scaffold (4A+4B: B1~B13) → b94d085 로 non-ff merge.
+  - feat/ui-polish (3B: A10~A15) → c401055 로 non-ff merge.
+  - 충돌 2건 (CredentialForm.tsx · ResultView.tsx): 4A 본문 버전 유지(3B 스텁 폐기).
+  - RoomPage.tsx 는 3B 의 `default → ResultView` 패턴으로 9 status 전부 커버 → 4A 의 별도 5 case PR 불필요.
+  - 남은 작업: B14 실 ERP 라이브 리허설 (사용자 동석, H+22 이후).
