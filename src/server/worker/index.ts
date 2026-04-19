@@ -77,7 +77,7 @@ export async function runSubmission(submissionId: string): Promise<WorkerResult>
 
   // mock | live — launch browser and perform login
   const screenshotDir = makeScreenshotDir(submissionId);
-  const session = await launchBrowser({ headless: false });
+  const session = await launchBrowser({ headless: mode === 'live' });
   try {
     // Step: login
     await deps.reportStep(sub.sessionId, 'login');

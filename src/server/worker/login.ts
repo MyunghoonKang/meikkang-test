@@ -1,14 +1,12 @@
 import type { Page } from 'playwright';
+import type { ErpCredential } from '../vault/types';
+
+export type { ErpCredential };
 
 export interface LoginOptions {
   loginUrl: string;      // file:// or https://
   companyCode?: string;  // default: 'meissa'
   timeoutMs?: number;    // default: 30_000
-}
-
-export interface ErpCredential {
-  loginId: string;
-  password: string;
 }
 
 export class LoginError extends Error {
