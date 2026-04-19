@@ -1,12 +1,34 @@
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import { resolveMode } from './mode';
 import { launchBrowser } from './browser';
-import { makeScreenshotDir } from './screenshots';
+import { makeScreenshotDir, snap } from './screenshots';
+import { login, LoginError } from './login';
 import type { WorkerResult, WorkerDeps, WorkerMode } from './types';
 
 export type { WorkerResult, WorkerDeps, WorkerMode };
 
 // Module-level deps reference, injected by 4A via initWorker()
 let _deps: WorkerDeps | null = null;
+
+/**
+ * Returns the ERP login URL for the given mode.
+ * - mock:    local file:// URL pointing to mock/erp-login.html
+ * - live/dryrun: process.env.ERP_BASE_URL + '/#/login'
+ */
+function loginUrlFor(mode: WorkerMode): string {
+  if (mode === 'mock') {
+    return pathToFileURL(
+      join(dirname(fileURLToPath(import.meta.url)), 'mock', 'erp-login.html'),
+    ).toString();
+  }
+  const base = process.env['ERP_BASE_URL'];
+  if (!base) {
+    throw new Error('ERP_BASE_URL environment variable is required for live/dryrun mode');
+  }
+  return `${base}/#/login`;
+}
 
 /**
  * Called by 4A (server) to inject vault/submission dependencies.
@@ -53,21 +75,43 @@ export async function runSubmission(submissionId: string): Promise<WorkerResult>
     };
   }
 
-  // mock | live — stub: launch browser then bail out
+  // mock | live — launch browser and perform login
+  const screenshotDir = makeScreenshotDir(submissionId);
   const session = await launchBrowser({ headless: false });
   try {
-    console.log(`[worker] runSubmission(${submissionId}) mode=${mode} — not implemented yet`);
+    // Step: login
+    await deps.reportStep(sub.sessionId, 'login');
+
+    const cred = await deps.loadCredential(sub.loserUserId);
+    if (!cred) {
+      const errorLog = `No credential found for user ${sub.loserUserId}`;
+      await deps.fail(submissionId, { status: 'FAILED_AUTH', errorLog, screenshotDir });
+      return { status: 'FAILED_AUTH', erpRefNo: null, sunginNb: null, screenshotDir, errorLog };
+    }
+
+    const page = await session.context.newPage();
+    try {
+      await login(page, cred, { loginUrl: loginUrlFor(mode) });
+    } catch (e) {
+      await snap(page, screenshotDir, 'login-fail');
+      const errorLog = e instanceof LoginError ? e.message : String(e);
+      await deps.fail(submissionId, { status: 'FAILED_AUTH', errorLog, screenshotDir });
+      return { status: 'FAILED_AUTH', erpRefNo: null, sunginNb: null, screenshotDir, errorLog };
+    }
+
+    // Subsequent steps (B8+) — not implemented yet
+    console.log(`[worker] runSubmission(${submissionId}) mode=${mode} — login OK, remaining steps not implemented yet`);
     const result = {
       status: 'FAILED_OTHER' as const,
       erpRefNo: null,
       sunginNb: null,
-      screenshotDir: null,
-      errorLog: 'runSubmission stub: not implemented yet',
+      screenshotDir,
+      errorLog: 'runSubmission: steps after login not implemented yet',
     };
     await deps.fail(submissionId, {
       status: result.status,
       errorLog: result.errorLog,
-      screenshotDir: null,
+      screenshotDir,
     });
     return result;
   } finally {
