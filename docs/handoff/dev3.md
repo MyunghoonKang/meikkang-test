@@ -111,7 +111,7 @@ src/server/routes/{sessions,games}.ts · src/shared/** · tests/{roomCode,manage
 - Task A7 머지 직후 슬랙에 "admin upload OK" 알림 (Dev 1·2 언블록).
 - Task A9 머지 직후 슬랙에 "실 소켓 연결 가능" 알림 (3B·4A 언블록).
 
-Task A1 스캐폴딩부터 시작. 각 커밋 후 멈춰서 결과를 보고해라.
+공동 계약 세션(H+0~2, Dev 4 와 동석)을 3A 가 리드해 `src/shared/protocol.ts` · `src/server/db/schema.ts` · `.env.example` · `src/server/hooks/submissionHook.ts` 시그니처 등 7 개 산출물을 main 에 머지한다. 세부 목록은 dev3.md §공동 계약 세션 참조. 머지 완료 후 Task A1 스캐폴딩으로 진입. 각 커밋 후 멈춰서 결과를 보고해라.
 ```
 
 ---
@@ -242,6 +242,8 @@ src/web/styles.css · src/web/socket.ts · tests/web/**
 - `src/web/components/CredentialForm.tsx` · `ResultView.tsx` 는 4A 소유. 건드리지 말 것.
 - 공동 계약 세션 산출물인 `src/web/styles.css` · `StatusBadge.tsx` · `InlineSpinner.tsx` 의 공용 시그니처를 지킬 것. 확장만 OK, 삭제·rename 금지.
 - 소켓 이벤트는 단일 채널 `room:state` 만 사용. 폴링 코드 작성 금지.
+
+선행: 공동 계약 세션(H+0~2)에서 3A·4A 가 `src/web/styles.css` · `StatusBadge.tsx` · `InlineSpinner.tsx` 공용 시그니처를 확정해 main 에 머지한 뒤 이 세션을 기동한다. 세부 목록은 dev3.md §공동 계약 세션 참조.
 
 Task A10 HomePage 부터 시작 (mock socket 기반). 각 커밋 후 멈춰서 결과를 보고해라.
 ```
