@@ -2405,3 +2405,33 @@ git commit -m "docs: demo rehearsal checklist"
 - [ ] 별도 ResultPage 라우트 제거. `/room/:code` 단일 라우트가 RoomStatus에 따라 LobbyView/GameView/ResultView 스왑. OK
 - [ ] 타입 일관성 — `SessionSnapshot`, `GameMeta`, `Player`, `SocketJoin` 등이 shared/protocol에서 정의되고 서버/웹에서 동일하게 import됨. OK
 - [ ] Plan B 의존성 — Credential 저장/큐/Scheduler/Playwright는 Plan B 범위. Task 13이 이를 스텁으로 명시. OK
+
+---
+
+## Lessons from 2026-04-20 E2E Simulation
+
+실제 브라우저 워크스루(HomePage → Lobby → Game → ResultView → CredentialForm → QUEUED)에서 발견된 6건 이슈. 재작성 시 아래 DoD 체크박스를 각 Task 에 **필수 추가**한다 (`dce28ef` 수정 참고).
+
+### Task 5 (SessionManager) 추가 DoD
+- [ ] `persist` 옵션이 true 인 경우 `createSession`·`join`·`transitionStatus` 가 **실제로 `sessions` 테이블에 insert/update** 수행. flag 만 선언하고 구현 누락 시 Plan B 의 `submissions.sessionId` FK 가 깨진다 (시뮬에서 `FOREIGN KEY constraint failed` 관찰됨).
+- [ ] `tests/manager.persist.test.ts` — `persist: true` 로 create 후 DB 를 다시 쿼리해 row 존재 확인.
+
+### Task 10 (HomePage / useSession) 추가 DoD
+- [ ] `useSession` hook 은 **module-level store + subscription** 패턴. component-local `useState` 금지. HomePage → RoomPage navigate 후 session 이 null 이 되는 사고 방지.
+- [ ] 서버 ack 응답 `snap.id` ↔ 클라이언트 `sessionId` 키명 매핑 함수(`toPayload`) 명시. zod `RoomStatePayload` 스키마로 ack 응답을 한 번 parse.
+
+### Task 12 (GameFrame / GameView) 추가 DoD
+- [ ] GameView mount 시 `snap.status === 'PLAYING' && snap.selectedGameId` 면 **REST fallback** (`GET /api/games`) 으로 game meta 조회. `socket.on('game:begin')` 리스너만 믿지 말 것 — 서버가 status broadcast 직후 즉시 game:begin 을 emit 하므로 호스트 탭에서 race 발생.
+
+### Task 13 (RoomPage / ResultView / CredentialForm) 추가 DoD
+- [ ] `RoomPage` → `ResultView` prop 이름을 **공동 계약 세션에서 lock**. 현 시점 결정: `{ state: RoomStatePayload, myPlayerId: string }`. 3B 는 `snap/me` 로 다른 뷰에 넘기고 있으니 ResultView 호출만 예외적으로 명시적 rename 필요.
+- [ ] `CredentialForm` prop 시그니처도 lock: `{ sessionId: string, loserId: string }`.
+- [ ] **UI props naming 도 §2.1 공동 계약 산출물 목록에 추가** (기존 7개 → 8개: StatusBadge/InlineSpinner/CredentialForm/ResultView 시그니처 묶음 1건).
+
+### Task 14 (샘플 게임) 추가 DoD
+- [ ] `games/*.html` 이 **실제 postMessage 계약을 구현한 플레이어블 게임** 이어야 한다. `<h1>TBD in Task 9</h1>` 같은 meta-only 스텁은 등록 거부. `docs/handoff/games-starter-template.html` 을 복사 후 제목·로직 수정이 최소 기준.
+- [ ] 각 게임은 `games-test-harness.html` 로 1회 플레이 완주 스크린샷 첨부.
+
+### Task 15·Task 16 (폴리싱·리허설) 추가 DoD
+- [ ] **브라우저 E2E 스모크** — `WORKER_MODE=mock` 으로 2 탭 시나리오(호스트+게스트) 를 HomePage→QUEUED 까지 수동 완주 후 `green` 표시. TDD 녹색이어도 integration 버그(props naming·mount race·FK)는 TDD 로 못 잡는다.
+- [ ] `src/web/socket.ts` 가 **실 `io()` 연결**(mock 아님) 임을 grep 으로 확인 — "A9 머지 후 1줄 교체" 같은 소소한 체크도 명시적 체크박스로.

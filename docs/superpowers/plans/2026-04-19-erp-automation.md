@@ -4,7 +4,7 @@
 
 **Goal:** Plan A(게임 플랫폼)에서 결정된 패자의 계정으로 더존 아마란스 ERP에 법인카드 지출결의서를 자동 상신하는 자격증명 볼트·제출 큐·스케줄러·Playwright 워커 파이프라인을 구축한다.
 
-**Architecture:** Plan A 서버에 `CredentialVault`(AES-256-GCM) · `SubmissionQueue`(상태머신) · `Scheduler`(node-cron, 분당 스캔) · `AutomationWorker`(Playwright-Node)를 추가한다. 워커는 Q6에서 확정된 UI·그리드 API 경로로 ERP를 조작하되, 카드내역 매칭·폼 채우기·결재상신 팝업 단계를 독립 모듈로 분리해 각각 로컬 목업 HTML에 대해 먼저 검증한다. 데모 안전장치로 환경변수 `WORKER_MODE=mock|live|dryrun` 3단 토글을 둔다.
+**Architecture:** Plan A 서버에 `CredentialVault`(AES-256-GCM) · `SubmissionQueue`(상태머신) · `Scheduler`(node-cron, 분당 스캔) · `AutomationWorker`(Playwright-Node)를 추가한다. 워커는 ERP Exploration에서 확정된 UI·그리드 API 경로로 ERP를 조작하되, 카드내역 매칭·폼 채우기·결재상신 팝업 단계를 독립 모듈로 분리해 각각 로컬 목업 HTML에 대해 먼저 검증한다. 데모 안전장치로 환경변수 `WORKER_MODE=mock|live|dryrun` 3단 토글을 둔다.
 
 **Tech Stack:** Plan A 기존 스택 + `playwright` (Chromium) · `node-cron` · Node 내장 `crypto` · `date-fns-tz`(Asia/Seoul 계산) · Vitest (단위 테스트) · 로컬 목업 HTML (통합 테스트)
 
@@ -13,7 +13,7 @@
 ## 참고 스펙 & 사전 조건
 
 - 설계: `docs/superpowers/specs/2026-04-19-erp-proposal-game-automation-design.md` (§4.4 워커 · §4.5 DB · §6.4 에러 · §6.6 데모 리스크)
-- ERP 필드: `docs/superpowers/specs/2026-04-19-q6-erp-field-findings.md` (전체 필드·API·매칭 전략)
+- ERP 필드: `docs/superpowers/specs/2026-04-19-erp-exploration-field-findings.md` (전체 필드·API·매칭 전략)
 - **UI 와이어프레임 (Claude Design):** `docs/design/project/Wireframes.html` — Task 3 (CredentialForm)·Task 11 (ResultView의 QUEUED/RUNNING/COMPLETED/FAILED 단계) 시각 스펙. 화면 5~7 참조.
 - **사전 조건:** Plan A가 Task 1~7까지 완료되어 있어 Express + Socket.io 서버, SQLite/Drizzle, 세션·게임 런너, React 프론트가 구동 가능한 상태여야 한다. 패자가 결정된 직후의 훅(`runner.ts`의 outcome broadcast 시점)에 Plan B의 `SubmissionQueue.enqueue()`를 호출해 연결한다.
 - **ERP 안전 규칙 (사용자 feedback 메모리):** 실 ERP 쓰기 동작(상신/저장)은 사용자 확인 없이 절대 수행 금지. 본 플랜의 `live` 모드 최종 단계는 항상 `--confirm` 플래그 또는 UI 확인 버튼을 요구한다.
@@ -75,7 +75,7 @@ src/
 
 **원칙**
 - 워커는 각 단계를 **순수 함수 + 브라우저 컨텍스트 인자**로 분리. `matcher.ts`처럼 DOM 밖에서 검증 가능한 로직은 따로 빼서 Vitest로 빠르게 검증.
-- `mock/` 폴더의 정적 HTML은 Q6의 실제 DOM selector를 그대로 흉내내서 **동일 코드가 `live`/`mock` 두 모드에서 모두 통과**하게 만든다.
+- `mock/` 폴더의 정적 HTML은 ERP Exploration의 실제 DOM selector를 그대로 흉내내서 **동일 코드가 `live`/`mock` 두 모드에서 모두 통과**하게 만든다.
 - 자격증명은 메모리에 필요한 순간(`worker/index.ts` 내부 decrypt)에만 평문화. 로그·스크린샷에 절대 노출 금지.
 
 ---
@@ -797,7 +797,7 @@ export function resolveMode(env: NodeJS.ProcessEnv): WorkerMode {
 }
 ```
 
-- [ ] **Step 6.2: 목업 HTML 3개 — Q6 selector 그대로 흉내**
+- [ ] **Step 6.2: 목업 HTML 3개 — ERP Exploration selector 그대로 흉내**
 
 `src/server/worker/mock/erp-login.html`:
 ```html
@@ -1051,7 +1051,7 @@ git commit -m "feat(worker): ERP 2-step login automation"
 - Create: `src/server/worker/matcher.ts`, `src/server/worker/cardModal.ts`, `src/server/worker/navigate.ts`
 - Test: `tests/matcher.test.ts` (순수 함수), `tests/worker-cardmodal.test.ts` (목업)
 
-- [ ] **Step 8.1: 매칭 규칙 단위 테스트 (Q6 §1 기준)**
+- [ ] **Step 8.1: 매칭 규칙 단위 테스트 (ERP Exploration §1 기준)**
 
 ```typescript
 // tests/matcher.test.ts
@@ -1104,7 +1104,7 @@ describe('matchCardRow', () => {
 });
 ```
 
-Fixture `tests/fixtures/cardRows.json` = Q6 §1 JSON 예시 + 2~3건 추가.
+Fixture `tests/fixtures/cardRows.json` = ERP Exploration §1 JSON 예시 + 2~3건 추가.
 
 Run: `npx vitest run tests/matcher.test.ts` → FAIL
 
@@ -1271,7 +1271,7 @@ export async function fillForm(page: Page, input: FillInput): Promise<void> {
   await page.keyboard.type(CASH_CODE);
   await page.keyboard.press('Enter');
 
-  // 3) 내용 (rmkDc): gridView API 로 값 직접 세팅 (Q6 권장)
+  // 3) 내용 (rmkDc): gridView API 로 값 직접 세팅 (ERP Exploration 권장)
   await page.evaluate((content) => {
     const el: any = document.querySelector('[data-orbit-id="APB1020WriteGridGrid"]');
     el.gridView.getDataSource().setValue(0, 'rmkDc', content);
@@ -1658,14 +1658,14 @@ npx tsx scripts/demo-dryrun.ts    # 같은 스크립트, 하지만 mode=live 로
 
 - **Dev 4 선행 필수:** Task 1 (DB 스키마)·Task 2 (Vault)·Task 4 (Queue)는 Dev 3 이 `CredentialForm`/`ResultView` 를 실제 API 에 물리기 전에 선행. 그 전까지 Dev 3 은 목 응답으로 UI 먼저 제작.
 - **UI 계약 먼저 고정:** Dev 4 는 Task 3 시작 시점에 `POST /api/credentials` 요청 스키마(zod), `POST /api/sessions/:id/submissions` 응답 스키마, 그리고 `RoomStatePayload`(Plan A Task 2)의 신규 필드(`submissionId`/`scheduledAt`/`workerStep`/`erpRefNo`/`errorLog`) 를 shared/protocol 에 선 push → Dev 3 는 동일 타입으로 폼/뷰 작성. `room:state` socket 채널이 단일 source of truth 이므로 폴링 코드는 작성하지 않는다.
-- **Dev 4 병목 리스크:** Plan B 의 Playwright 워커(Task 6~10)가 본 과제의 단일 최대 난이도. 목업 HTML(Task 6) 은 Q6 findings 의 DOM 을 흉내내는 단순 정적 작업이므로, Plan A Task 14 를 먼저 끝낸 Dev 1/2 에게 "목업 HTML 세팅"만 선택적으로 위임 가능 — **본 배분의 유일한 이월 여유**.
+- **Dev 4 병목 리스크:** Plan B 의 Playwright 워커(Task 6~10)가 본 과제의 단일 최대 난이도. 목업 HTML(Task 6) 은 ERP Exploration findings 의 DOM 을 흉내내는 단순 정적 작업이므로, Plan A Task 14 를 먼저 끝낸 Dev 1/2 에게 "목업 HTML 세팅"만 선택적으로 위임 가능 — **본 배분의 유일한 이월 여유**.
 - **Task 14 (라이브 리허설)** 은 Dev 4 가 진행하되, 사용자(본인) 동석 하에 수행 — feedback memory §ERP browser session safety 준수.
 
 ## 백로그 / 확정 후 처리
 
-- 영수증 이미지 첨부 자동화 — Q6 에서 `지출결의+카드_…jpeg` 가 자동 붙는 것으로 관측됨. 필요시 수동 업로드 경로 추가
+- 영수증 이미지 첨부 자동화 — ERP Exploration 에서 `지출결의+카드_…jpeg` 가 자동 붙는 것으로 관측됨. 필요시 수동 업로드 경로 추가
 - 카드내역 모달의 "반영완료" 탭도 조회해 중복 여부 교차 확인
-- 암호화 페이로드 raw 경로 매핑 — UI 경유로 막히면 직접 API 호출 경로 연구 (Q6 §1 관련 API 리스트)
+- 암호화 페이로드 raw 경로 매핑 — UI 경유로 막히면 직접 API 호출 경로 연구 (ERP Exploration §1 관련 API 리스트)
 - 감사 로그(`audit_logs` 테이블) — 누가 누구의 계정으로 언제 상신했는지. 데모에선 skip, 실배포 필수
 - SSO/Vault 전환 설계 슬라이드 (§9)
 
@@ -1674,7 +1674,32 @@ npx tsx scripts/demo-dryrun.ts    # 같은 스크립트, 하지만 mode=live 로
 ## Self-Review 결과
 
 - **스펙 커버리지:** §4.4 워커(Task 6~10), §4.5 DB(Task 1), §5 Phase 3-4 플로우(Task 4,5,12), §6.4 에러(Task 7~10 의 status 분기), §6.5 큐 리커버리(Task 4.1 마지막 케이스), §6.6 모킹 모드(Task 6 + 13) 전 항목 대응.
-- **Q6 커버리지:** 2단계 로그인(Task 7), URL 직접이동(Task 8.4), RealGrid JSON API(Task 8.5), cashCd 3001(Task 9), 예산 3009/4001 lookup(Task 9), 새 탭 결재상신 + dzEditor(Task 10), 매칭 `cardCd`+`issDt`+`sunginNb`(Task 8.2) 포함.
+- **ERP Exploration 커버리지:** 2단계 로그인(Task 7), URL 직접이동(Task 8.4), RealGrid JSON API(Task 8.5), cashCd 3001(Task 9), 예산 3009/4001 lookup(Task 9), 새 탭 결재상신 + dzEditor(Task 10), 매칭 `cardCd`+`issDt`+`sunginNb`(Task 8.2) 포함.
 - **타입 일관성:** `WorkerMode`/`SubmissionStatus`/`EnqueueInput`/`CompleteInput` 을 Task 4 에 정의한 시그니처가 Task 5,6,11,12 에서 그대로 사용됨. 매칭 함수는 `matchCardRow` 단일 이름으로 고정.
 - **안전 가드:** `live` + 상신은 `ERP_CONFIRM_SUBMIT` 환경변수 + Task 14 수동 리허설 두 단계 게이트. 추가로 게임 종료 직후 자동 enqueue 가 일어나지 않으며, **패자가 명시적으로 자격증명을 제출**해야 `CREDENTIAL_INPUT → QUEUED` 로 진입한다 (Task 12 변경).
 - **UX 통합:** Plan A Task 13의 `ResultView`가 `room:state` 단일 채널을 구독해 9개 RoomStatus 모두를 표시하므로 Plan B 측에 별도 `ResultPage.tsx` / `CredentialPage.tsx` 가 존재하지 않는다 — Plan A 와의 라우팅·상태 모델이 일관됨.
+
+---
+
+## Lessons from 2026-04-20 E2E Simulation
+
+실제 브라우저 워크스루에서 발견된 Plan B 측 이슈. 재작성 시 아래 DoD 체크박스를 각 Task 에 **필수 추가** (`dce28ef` 수정 참고).
+
+### Task 4 (SubmissionQueue) + Task 11 (REST) 추가 DoD
+- [ ] **`submissions.sessionId` FK 보장 경로** — in-memory `SessionManager` 가 DB persist 하지 않을 수 있으므로, `POST /api/sessions/:id/submissions` 핸들러는 `queue.enqueue` 직전에 `sessions` 테이블을 **upsert** (`db.insert(sessions).values({...}).onConflictDoNothing().run()`) 해야 `FOREIGN KEY constraint failed` 방지. Plan A Task 5 의 `persist` 옵션이 제대로 구현되면 이 upsert 는 불필요하지만, 이중 가드로 유지.
+- [ ] `tests/submissions-route.test.ts` — sessions 테이블이 비어 있는 상태에서 enqueue 호출 → 에러 없이 통과하는 케이스 포함.
+
+### Task 11 (REST 수동 트리거) 추가 DoD
+- [ ] **`POST /api/submissions/:id/run-now` 가 실제로 `runSubmission(submissionId)` 을 호출**. `{ ok: true }` 스텁만 반환하면 안 됨 (시뮬에서 UI 가 QUEUED 에 고착). 구현 패턴:
+  ```ts
+  res.status(202).json({ ok: true, submissionId });
+  // fire-and-forget
+  runSubmission(submissionId).catch(err => console.error('[run-now]', err));
+  ```
+- [ ] 호출 직전 `mgr.transitionStatus(sessionId, 'RUNNING', { workerStep: 'login' })` + `broadcastRoomState` 수행. UI 가 RUNNING 진입을 볼 수 있어야 한다.
+
+### Task 3 (CredentialForm) 추가 DoD
+- [ ] `CredentialForm` prop 시그니처는 `{ sessionId: string, loserId: string }` 로 공동 계약 세션에서 lock. ResultView 에서 이 형태로 호출됨을 전제.
+
+### Task 13 (E2E 드라이런) 추가 DoD
+- [ ] **브라우저 2 탭 수동 E2E 체크리스트** — `tests/e2e-mock.test.ts` 녹색만으로는 부족. HomePage → Lobby → Game → Result → Credential → QUEUED → (run-now) → RUNNING → COMPLETED 전체 완주를 Playwright headed 또는 수동 브라우저로 1회 이상 확인. Props naming·mount race·FK 는 TDD 가 못 잡는 영역.

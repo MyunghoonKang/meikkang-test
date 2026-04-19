@@ -221,3 +221,42 @@ Contract-First 로 독립 작업을 풀려면 **이 2h 안에 다음 파일들�
 본 설계안 승인 후:
 1. `docs/handoff/README.md` · `dev3-ui.md` · `dev4-engine.md` 를 본 설계 기준으로 재작성. 새 구조 = `README.md` + **`dev3.md`** (세션 3A·3B 통합) + **`dev4.md`** (세션 4A·4B 통합) + `dev1-2-game-cowork.md`. 4 세션을 2 브리프에 담는 이유: Dev 당 한 파일에서 자기 몫 전부 확인 가능 · 문서 수 최소화. 각 브리프 안에서 세션별 프롬프트·DoD·파일 소유권 블록은 별도 섹션으로 분리.
 2. 공동 계약 세션 H+0~2 산출물은 Plan A Task A1·A2·A3 + Plan B Task B1·B2 초반부에 이미 명시되어 있어 별도 실행 플랜 불필요. 구현 계획(writing-plans)은 handoff 재작성에 집중.
+
+---
+
+## 10. Lessons from 2026-04-20 E2E Simulation (post-hackathon learnings)
+
+사용자가 Dev 3/4 를 가상 플레이한 24h PoC 시뮬 결과, **TDD 18/18 녹색에도 실제 브라우저에서 6건 통합 버그** 가 드러났다. 재해커톤 시 아래 원칙을 §2 공동 계약과 §4 DoD 에 흡수한다.
+
+### 10.1 공동 계약 산출물에 추가 (§2.1 갱신 권고)
+
+기존 7개 산출물 → 8개. 추가 항목:
+
+8. **UI 컴포넌트 props 시그니처 lock** — 3B 가 만들 `RoomPage` 의 switch 분기가 4A 소유 `ResultView` / `CredentialForm` 을 호출할 때 prop 이름이 공동 계약에 있어야 한다. 시뮬에서 `<ResultView snap={session} me={me} />` (3B) vs `function ResultView({ state, myPlayerId }: ...)` (4A) 불일치로 런타임 에러 발생. 확정 시그니처:
+   - `ResultView({ state: RoomStatePayload, myPlayerId: string })`
+   - `CredentialForm({ sessionId: string, loserId: string })`
+   - `LobbyView({ snap: RoomStatePayload, me: string })`
+   - `GameView({ snap: RoomStatePayload, me: string })`
+
+### 10.2 각 세션 DoD 체크박스 강화
+
+- **3A**: `SessionManager.persist` 옵션은 **실제로 DB insert/update 하는 구현**까지 포함. flag 선언만 두면 4A 의 `submissions.sessionId` FK 가 즉시 깨진다.
+- **3B**:
+  - `useSession` 은 component-local `useState` 금지 → module-level store + subscription.
+  - `src/web/socket.ts` 를 실 `io()` 로 1줄 교체했는지 grep 으로 검증.
+  - `GameView` 는 `game:begin` 이벤트 listener 만 믿지 말고 REST fallback(`GET /api/games`) 제공.
+- **4A**:
+  - `/api/submissions/:id/run-now` 가 실제 `runSubmission` 호출을 포함 (스텁 금지).
+  - `queue.enqueue` 직전 `sessions` 테이블 upsert (이중 가드).
+- **통합**: 각 세션 완료 시 **2 탭 수동 E2E 스모크** 필수. TDD 녹색 ≠ E2E 녹색. 시뮬에서 TDD 82/82 통과에도 브라우저에선 6건 실패.
+
+### 10.3 프롬프트 "실행 원칙" 에 추가 (dev3.md · dev4.md)
+
+기존 "Task 1 완료 후 push+STOP" 에 다음 한 줄 추가:
+
+> - **스모크 검증**: `src/web/**` 또는 `src/server/routes/**` 를 수정한 Task 는 `npm run dev` 로 서버 기동 후 해당 엔드포인트/화면에 요청 1회 보내 200/렌더 확인까지 해야 Task 완료.
+
+### 10.4 참고 커밋
+
+- `dce28ef` — 시뮬 발견 6 버그 일괄 패치.
+- `docs/handoff/session-notes.md` — 전체 시뮬 로그 + 미해결 항목(run-now 스텁).
