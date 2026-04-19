@@ -17,7 +17,7 @@
 Contract-First 로 독립 작업을 풀기 위해 **이 2h 안에 다음 7 개 산출물이 첫 커밋 + `main` 머지**되어야 한다. 3A 가 PR 리드, 4A 가 리뷰어로 `src/shared/protocol.ts` 의 Plan B 필드(`submissionId` · `scheduledAt` · `workerStep` · `erpRefNo` · `errorLog`) + `src/server/db/schema.ts` 의 `submissions` · `credentials` 테이블 + `src/server/hooks/submissionHook.ts` 시그니처를 승인하고 OK 로그를 남긴다. 커밋 메시지: `feat(shared): lock contracts for A/B split`.
 
 1. **`src/shared/protocol.ts`** (전부 확정)
-   - `RoomStatus` 9 enum (PREPARING · PLAYING · FINISHED · CREDENTIAL_INPUT · QUEUED · RUNNING · COMPLETED · FAILED · ABANDONED)
+   - `RoomStatus` 9 enum (PREPARING · PLAYING · FINISHED · CREDENTIAL_INPUT · QUEUED · RUNNING · COMPLETED · FAILED · ABORTED)
    - `RoomStatePayload` (submissionId · scheduledAt · workerStep · erpRefNo · errorLog 포함)
    - `credentialInputSchema` (userId · loginId · password)
    - `ALLOWED_TRANSITIONS` 표
@@ -85,7 +85,7 @@ Contract-First 로 독립 작업을 풀기 위해 **이 2h 안에 다음 7 개 �
 
 - 4A 는 **`runSubmission(submissionId: string): Promise<WorkerResult>` 를 `src/server/worker/index.ts` 에서 import** 한다. Scheduler (B5) · run-now 엔드포인트 (B11) 양쪽에서 호출.
 - 4A 는 **워커 내부 절대 건드리지 않는다** — 4B 가 워커 플로우를 통제. 로그인 재시도 · 셀렉터 fallback · Playwright 실행은 4B 의 책임.
-- 4B 는 각 워커 단계 시작 시 `transitionStatus(RUNNING, { workerStep })` 를 호출해 4A 의 broadcast 경로로 흐르게 한다. `workerStep` 값 (`login` · `card-match` · `form-fill` · `approval`) 은 ResultView 가 InlineSpinner 레이블로 표시.
+- 4B 는 각 워커 단계 시작 시 `transitionStatus(RUNNING, { workerStep })` 를 호출해 4A 의 broadcast 경로로 흐르게 한다. `workerStep` 값 (`login` · `cardModal` · `formFill` · `approval`) 은 ResultView 가 InlineSpinner 레이블로 표시.
 - 워커 결과는 `WorkerResult = { status: 'COMPLETED' | 'FAILED', erpRefNo?: string, errorLog?: string }`. 4A 는 이를 받아 최종 전이 (`RUNNING → COMPLETED` 또는 `RUNNING → FAILED`) + broadcast.
 
 ### RoomPage 5 case 추가 PR 타이밍
@@ -149,8 +149,8 @@ Task B1 부터 시작. 각 커밋 후 멈춰서 결과를 보고해라.
 |------|------|------|
 | 1 | **B6** 워커 스캐폴딩 + 목업 HTML 3 종 + `WORKER_MODE` 토글 | 공동 계약 머지 직후 착수. `runSubmission` export 스텁 먼저 커밋해 4A 언블록 |
 | 2 | **B7** 로그인 단계 (`workerStep='login'` + `transitionStatus(RUNNING, { workerStep })` 호출) | 목업 로그인 HTML 기반 integration 테스트 |
-| 3 | **B8** 카드매칭 (`workerStep='card-match'`) | `tests/fixtures/cardRows.json` 사용. `matcher.test.ts` 에서 단위 커버 |
-| 4 | **B9** 품의서 폼채움 (`workerStep='form-fill'`) | 필드 매핑은 ERP Exploration §폼 필드 섹션 참조 |
+| 3 | **B8** 카드매칭 (`workerStep='cardModal'`) | `tests/fixtures/cardRows.json` 사용. `matcher.test.ts` 에서 단위 커버 |
+| 4 | **B9** 품의서 폼채움 (`workerStep='formFill'`) | 필드 매핑은 ERP Exploration §폼 필드 섹션 참조 |
 | 5 | **B10** 결재상신 (`workerStep='approval'`) | **mock 모드에서는 최종 [상신] 버튼 클릭 금지.** `ERP_CONFIRM_SUBMIT=1` + live 모드에서만 실제 클릭 |
 | 6 | **B14** 실 ERP 라이브 리허설 | **사용자 본인(Dev 4) 동석 · H+22 이후**. 아래 §ERP 라이브 리허설 체크리스트 준수 |
 
@@ -158,7 +158,7 @@ Task B1 부터 시작. 각 커밋 후 멈춰서 결과를 보고해라.
 
 - **export 시그니처 고정:** `src/server/worker/index.ts` 에서 `runSubmission(submissionId: string): Promise<WorkerResult>` 를 export. `WorkerResult = { status: 'COMPLETED' | 'FAILED', erpRefNo?: string, errorLog?: string }`.
 - 4A 는 Scheduler (B5) 와 `/run-now` 라우트 (B11) 에서 이 함수를 호출. 워커 진입점은 이 함수 하나뿐.
-- **각 단계 시작 시 `transitionStatus(RUNNING, { workerStep })` 호출** — 4A 의 broadcast 경로로 흘러가 ResultView 가 InlineSpinner 레이블을 갱신. `workerStep` 값은 `login` · `card-match` · `form-fill` · `approval` 네 가지.
+- **각 단계 시작 시 `transitionStatus(RUNNING, { workerStep })` 호출** — 4A 의 broadcast 경로로 흘러가 ResultView 가 InlineSpinner 레이블을 갱신. `workerStep` 값은 `login` · `cardModal` · `formFill` · `approval` 네 가지.
 - 워커는 `snap.status` 를 직접 쓰지 않는다. 항상 `mgr.transitionStatus()` 경유 (illegal transition 가드 필수).
 
 ### Playwright 안전 규칙 (스펙 §6.5 verbatim)
@@ -194,7 +194,7 @@ Plan B: docs/superpowers/plans/2026-04-19-erp-automation.md 의 Task B6~B10 + B1
 제약:
 - `src/web/**` 전부 금지. `src/server/{vault,submissions,hooks,routes}/**` · `src/server/{index,app,config,io}.ts` · `src/server/{db,session,games}/**` 도 금지. 4A/3A 가 각각 소유.
 - 워커 진입점: `src/server/worker/index.ts` 에서 `runSubmission(submissionId: string): Promise<WorkerResult>` 를 export. 4A 가 import 한다. 시그니처 변경 금지.
-- 각 워커 단계(login · card-match · form-fill · approval) 시작 시 반드시 `transitionStatus(RUNNING, { workerStep })` 호출. 직접 `snap.status = ...` 금지.
+- 각 워커 단계(login · cardModal · formFill · approval) 시작 시 반드시 `transitionStatus(RUNNING, { workerStep })` 호출. 직접 `snap.status = ...` 금지.
 - ERP 안전: mock 모드에서는 최종 [상신] 버튼 클릭 금지. B14 라이브는 사용자 본인 동석 + `WORKER_MODE=live` + `ERP_CONFIRM_SUBMIT=1` 동시 세팅 + 수동 확인 후에만.
 - Playwright 는 `headless=false` 유지. 관측-only 세션은 마지막에 탭 수동 close.
 

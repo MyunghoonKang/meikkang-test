@@ -17,7 +17,7 @@
 Contract-First 로 독립 작업을 풀기 위해 **이 2h 안에 다음 7 개 산출물이 첫 커밋 + `main` 머지**되어야 한다. 3A 가 PR 리드, 4A 가 리뷰어로 `src/shared/protocol.ts` · `src/server/db/schema.ts` · `submissionHook.ts` 시그니처 OK 로그를 남긴다. 커밋 메시지: `feat(shared): lock contracts for A/B split`.
 
 1. **`src/shared/protocol.ts`** (전부 확정)
-   - `RoomStatus` 9 enum (PREPARING · PLAYING · FINISHED · CREDENTIAL_INPUT · QUEUED · RUNNING · COMPLETED · FAILED · ABANDONED)
+   - `RoomStatus` 9 enum (PREPARING · PLAYING · FINISHED · CREDENTIAL_INPUT · QUEUED · RUNNING · COMPLETED · FAILED · ABORTED)
    - `RoomStatePayload` (submissionId · scheduledAt · workerStep · erpRefNo · errorLog 포함)
    - `credentialInputSchema` (userId · loginId · password)
    - `ALLOWED_TRANSITIONS` 표

@@ -47,7 +47,7 @@ Contract-First 로 독립 작업을 풀려면 **이 2h 안에 다음 파일들�
 ### 2.1 산출물
 
 1. **`src/shared/protocol.ts`** (전부 확정)
-   - `RoomStatus` 9 enum (PREPARING · PLAYING · FINISHED · CREDENTIAL_INPUT · QUEUED · RUNNING · COMPLETED · FAILED · ABANDONED)
+   - `RoomStatus` 9 enum (PREPARING · PLAYING · FINISHED · CREDENTIAL_INPUT · QUEUED · RUNNING · COMPLETED · FAILED · ABORTED)
    - `RoomStatePayload` (submissionId · scheduledAt · workerStep · erpRefNo · errorLog 포함)
    - `credentialInputSchema` (userId · loginId · password)
    - `ALLOWED_TRANSITIONS` 표
