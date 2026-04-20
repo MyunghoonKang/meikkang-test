@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>결재상신 (Mock)</title>
+  <style>
+    body { font-family: sans-serif; margin: 0; background: #f0f2f5; }
+    header { background: #1a73e8; color: white; padding: 12px 20px; font-size: 16px; font-weight: bold; }
+    .container { max-width: 820px; margin: 20px auto; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.1); padding: 24px; }
+    h2 { margin-top: 0; color: #333; }
+    section { margin-bottom: 24px; }
+    section h3 { font-size: 15px; color: #555; border-bottom: 1px solid #eee; padding-bottom: 6px; margin-bottom: 12px; }
+    .editor-wrapper { border: 1px solid #ccc; border-radius: 4px; min-height: 200px; overflow: hidden; }
+    iframe { width: 100%; border: none; display: block; min-height: 200px; }
+    .approval-slot { display: flex; gap: 12px; flex-wrap: wrap; }
+    .approver-card { border: 1px solid #ddd; border-radius: 6px; padding: 12px 16px; min-width: 120px; text-align: center; background: #fafafa; }
+    .approver-card .role { font-size: 12px; color: #888; margin-bottom: 4px; }
+    .approver-card .name { font-size: 14px; font-weight: bold; color: #333; }
+    .approver-card .status { font-size: 12px; color: #1a73e8; margin-top: 4px; }
+    .toolbar { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+    button { padding: 9px 20px; border: 1px solid #ccc; border-radius: 4px; background: #fff; cursor: pointer; font-size: 14px; }
+    button:hover { background: #e8f0fe; border-color: #1a73e8; }
+    button.primary { background: #1a73e8; color: white; border-color: #1a73e8; }
+    button.primary:hover { background: #1558b0; }
+    #statusMsg { margin-top: 10px; color: #2e7d32; font-weight: bold; display: none; }
+  </style>
+</head>
+<body>
+  <header>결재상신</header>
+
+  <div class="container">
+    <h2>결재 상신</h2>
+
+    <!-- Editor section (dzEditor mock via iframe) -->
+    <section>
+      <h3>결재 의견 / 본문</h3>
+      <div class="editor-wrapper">
+        <!-- dzEditor mock: contentEditable iframe body -->
+        <iframe id="editorView_UBAP001" src="about:blank" title="결재 의견 입력창"></iframe>
+      </div>
+    </section>
+
+    <!-- Approval line section -->
+    <section>
+      <h3>결재선</h3>
+      <div class="approval-slot" id="approvalSlot">
+        <div class="approver-card">
+          <div class="role">기안자</div>
+          <div class="name" id="draftName">강명훈</div>
+          <div class="status">대기중</div>
+        </div>
+        <div class="approver-card">
+          <div class="role">합의 1</div>
+          <div class="name">—</div>
+          <div class="status" style="color:#aaa;">슬롯</div>
+        </div>
+        <div class="approver-card">
+          <div class="role">합의 2</div>
+          <div class="name">—</div>
+          <div class="status" style="color:#aaa;">슬롯</div>
+        </div>
+        <div class="approver-card">
+          <div class="role">최종 결재</div>
+          <div class="name">—</div>
+          <div class="status" style="color:#aaa;">슬롯</div>
+        </div>
+      </div>
+    </section>
+
+    <div class="toolbar">
+      <button type="button" onclick="window.close()">취소</button>
+      <button id="submitBtn" type="button" class="primary">상신</button>
+    </div>
+
+    <div id="statusMsg">상신이 완료되었습니다.</div>
+  </div>
+
+  <script>
+    // ---- Initialize iframe contentEditable body ----
+    var editorIframe = document.getElementById('editorView_UBAP001');
+
+    function initEditor() {
+      try {
+        var doc = editorIframe.contentDocument || editorIframe.contentWindow.document;
+        doc.open();
+        doc.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{margin:8px;font-family:sans-serif;font-size:14px;min-height:180px;outline:none;}p{margin:0 0 8px;}</style></head><body contenteditable="true" id="editorBody"><p></p></body></html>');
+        doc.close();
+      } catch (e) {
+        console.warn('editorView init failed (cross-origin):', e);
+      }
+    }
+
+    editorIframe.addEventListener('load', initEditor);
+    // Also try immediately in case already loaded
+    initEditor();
+
+    // Expose helper so automation can inject text via postMessage or direct access
+    window.setEditorContent = function(html) {
+      try {
+        var doc = editorIframe.contentDocument || editorIframe.contentWindow.document;
+        var body = doc.getElementById('editorBody') || doc.body;
+        if (body) body.innerHTML = html;
+      } catch (e) {
+        console.warn('setEditorContent failed:', e);
+      }
+    };
+
+    // ---- Submit button ----
+    document.getElementById('submitBtn').addEventListener('click', function() {
+      // mock: alert and show status message (do NOT actually submit in mock)
+      alert('submitted');
+      document.getElementById('statusMsg').style.display = 'block';
+      document.getElementById('submitBtn').disabled = true;
+    });
+
+    // ---- postMessage support for parent window communication ----
+    window.addEventListener('message', function(event) {
+      if (event.data && event.data.type === 'setDraftName') {
+        document.getElementById('draftName').textContent = event.data.name || '강명훈';
+      }
+      if (event.data && event.data.type === 'setEditorContent') {
+        window.setEditorContent(event.data.html || '');
+      }
+    });
+  </script>
+</body>
+</html>
